@@ -9,19 +9,21 @@
   "files": ["dist"],
   "scripts": {
     "prebuild": "rm -rf dist && mkdir dist",
+    "build": "bun run build:server && bun run build:browser && bun run build:types",
     "build:server": "bun build src/index.ts --outfile=dist/server-index.js --target=node",
     "build:browser": "bun build src/index.ts --outfile=dist/browser-index.js --target=browser",
-    "build:types": "bunx tsc --emitDeclarationOnly --declaration src/index.ts --outDir dist --skipLibCheck",
-    "build": "bun run build:server && bun run build:browser && bun run build:types"
+    "build:types": "bunx tsc --emitDeclarationOnly --declaration src/index.ts --outDir dist --skipLibCheck"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/eventsource": "^1.1.15"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "cross-fetch": "^4.0.0",
+    "eventsource": "^2.0.2",
     "viem": "^2.21.40"
   }
 }

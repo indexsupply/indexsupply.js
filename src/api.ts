@@ -1,4 +1,5 @@
 import fetch from "cross-fetch";
+import EventSource from 'eventsource'
 
 const indexerUrl = 'https://api.indexsupply.net'
 
@@ -91,8 +92,54 @@ export type QuerySingleLiveRawOptions = {
 }
 
 export async function* querySingleLiveRaw(options: QuerySingleLiveRawOptions): AsyncGenerator<QuerySingleData<string[]>> {
-  // TODO: Implement with EventSource in browser, and polyfill / HTTP impl on backend
-  throw new Error('Unimplemented')
+  const params = new URLSearchParams({
+    chain: options.chainId.toString(),
+    query: options.query,
+    event_signatures: options.eventSignatures.join(','),
+  })
+  if (options.blockNumber) {
+    params.append('block_height', options.blockNumber.toString())
+  }
+  const url = new URL(`${indexerUrl}/query-live?${params}`)
+
+  const eventSource = new EventSource(url.toString())
+
+  try {
+    while (true) {
+      const event = await new Promise<MessageEvent>((resolve, reject) => {
+        eventSource.onmessage = (event) => {
+          resolve(event)
+        }
+
+        eventSource.onerror = (error) => {
+          reject(error)
+        }
+      })
+
+      const data = JSON.parse(event.data) as APIDataFormat
+      if (data.result.length === 0) {
+        yield { blockNumber: data.block_height, result: [] }
+        continue
+      }
+
+      if (data.result.length !== 1) {
+        throw new Error(`Expected 1 result, got ${data.result.length}`)
+      }
+
+      const result = data.result[0]
+      if (result.length === 0) {
+        yield { blockNumber: data.block_height, result: [] }
+        continue
+      }
+
+      yield {
+        blockNumber: data.block_height,
+        result: result.slice(1),
+      }
+    }
+  } finally {
+    eventSource.close()
+  }
 }
 
 export type QuerySingleLiveOptions<FormattedRow> = QuerySingleLiveRawOptions & {

@@ -1,4 +1,4 @@
-import { querySingleLive, querySingleLiveRaw, type SupportedChainId } from "./api"
+import { querySingle, querySingleLive, querySingleLiveRaw, type SupportedChainId } from "./api"
 
 export type RowFormatter<FormattedRow> = (values: string[]) => FormattedRow
 export type GetProgressFunction = () => Promise<number>
@@ -49,6 +49,12 @@ export class SyncClientSingle<FormattedRow> {
   }
 
   async sync(): Promise<void> {
+    // This is tricky to make an API that uses the single GET endpoint combined with
+    // the live endpoint because we need to filter from block >= start block. Unless
+    // the SQL API provides this as a header option, we can't be sure we're modifying
+    // the user's SQL query without making this library significantly more complicated by
+    // parsing it in JS.
+
     const startBlock = await this.getProgress()
 
     const liveResults = querySingleLive({
@@ -68,7 +74,7 @@ export class SyncClientSingle<FormattedRow> {
         // 1. Drop whole state, start over.
         // 2. Delete invalid state, fill in state we're missing.
         // 3. ?
-        throw new Error('reorg')
+        // throw new Error('reorg')
       }
 
       await this.saveProgress(blockNumber, result)
