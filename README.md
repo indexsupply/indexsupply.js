@@ -74,3 +74,25 @@ const client = new SyncClientSingle({
 await client.sync()
 ```
 -->
+
+## Installation and Development Workflow
+
+### Installation
+
+1. **Install Dependencies**
+
+    Use Bun to install dependencies quickly:
+    
+        bun install
+
+2. **Build the Project**
+
+    We use esbuild to build the project. Compile the project into the `dist` folder:
+    
+        bun run build
+
+3. **Testing**
+
+    Run tests using Bun to ensure everything is working as expected:
+    
+        bun test
