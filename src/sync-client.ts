@@ -68,14 +68,14 @@ export class SyncClientSingle<FormattedRow> {
     let lastBlock = startBlock
 
     for await (const { blockNumber, result } of liveResults) {
-      if (blockNumber < lastBlock) {
-        // TODO: Handle reorgs
-        // We can approach this a couple ways:
-        // 1. Drop whole state, start over.
-        // 2. Delete invalid state, fill in state we're missing.
-        // 3. ?
-        // throw new Error('reorg')
-      }
+      // if (blockNumber < lastBlock) {
+      //  // TODO: Handle reorgs
+      //  // We can approach this a couple ways:
+      //  // 1. Drop whole state, start over.
+      //  // 2. Delete invalid state, fill in state we're missing.
+      //  // 3. ?
+      //  // throw new Error('reorg')
+      // }
 
       await this.saveProgress(blockNumber, result)
       lastBlock = blockNumber

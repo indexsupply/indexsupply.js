@@ -1,27 +1,17 @@
 {
   "compilerOptions": {
-    // Enable latest features
-    "lib": ["ESNext", "DOM"],
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
-
-    // Bundler mode
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-
-    // Best practices
+    "baseUrl": "./",
+    "paths": {
+      "eventsource-platform-specific": ["./src/eventsource-node"]  // Directly point to the Node.js version for simplicity
+    },
+    "declaration": true,
+    "declarationDir": "dist/types",
+    "emitDeclarationOnly": true,
+    "moduleResolution": "node",
     "strict": true,
     "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

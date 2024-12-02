@@ -1,5 +1,6 @@
-import type { Address } from 'viem'
 import { querySingle } from '../src/index'
+
+type Address = `0x${string}`
 
 const result = await querySingle({
   chainId: 8453,

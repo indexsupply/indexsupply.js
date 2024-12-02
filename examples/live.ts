@@ -1,5 +1,6 @@
-import type { Address } from 'viem'
 import { querySingleLive } from '../src/index'
+
+type Address = `0x${string}`
 
 const liveQuery = querySingleLive({
   chainId: 8453,

@@ -4,26 +4,24 @@
   "description": "A Typescript wrapper for Index Supply Co's SQL API",
   "main": "dist/server-index.js",
   "browser": "dist/browser-index.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/types/index.d.ts",
   "type": "module",
   "files": ["dist"],
   "scripts": {
     "prebuild": "rm -rf dist && mkdir dist",
-    "build": "bun run build:server && bun run build:browser && bun run build:types",
-    "build:server": "bun build src/index.ts --outfile=dist/server-index.js --target=node",
-    "build:browser": "bun build src/index.ts --outfile=dist/browser-index.js --target=browser",
-    "build:types": "bunx tsc --emitDeclarationOnly --declaration src/index.ts --outDir dist --skipLibCheck"
+    "build": "npm run build:server && npm run build:browser && npm run build:types",
+    "build:server": "esbuild src/index.ts --bundle --platform=node --outfile=dist/server-index.js --format=esm --alias:eventsource-platform-specific=./src/eventsource-node",
+    "build:browser": "esbuild src/index.ts --bundle --platform=browser --outfile=dist/browser-index.js --format=esm --alias:eventsource-platform-specific=./src/eventsource-browser",
+    "build:types": "tsc --emitDeclarationOnly && rm dist/types/eventsource*.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/eventsource": "^1.1.15"
-  },
-  "peerDependencies": {
+    "@types/eventsource": "^1.1.15",
+    "esbuild": "^0.18.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "cross-fetch": "^4.0.0",
-    "eventsource": "^2.0.2",
-    "viem": "^2.21.40"
+    "eventsource": "^2.0.2"
   }
 }

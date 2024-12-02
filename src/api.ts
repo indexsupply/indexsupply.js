@@ -1,5 +1,5 @@
 import fetch from "cross-fetch";
-import EventSource from 'eventsource'
+import EventSource from 'eventsource-platform-specific';
 
 const indexerUrl = 'https://api.indexsupply.net'
 

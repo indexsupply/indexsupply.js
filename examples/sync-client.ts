@@ -1,7 +1,8 @@
-import type { Address } from "viem";
 import { SyncClientSingle } from "../src/sync-client";
 
-// This does not currently work.
+type Address = `0x${string}`
+
+// This is not ready for production use.
 
 const client = new SyncClientSingle({
   chainId: 8453,
