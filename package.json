@@ -1,7 +1,7 @@
 {
-  "name": "sqlapi.js",
+  "name": "indexsupply.js",
   "version": "0.0.1",
-  "description": "A Typescript wrapper for Index Supply Co's SQL API",
+  "description": "A Typescript wrapper for Index Supply's API",
   "main": "dist/server-index.js",
   "browser": "dist/browser-index.js",
   "types": "dist/types/index.d.ts",
