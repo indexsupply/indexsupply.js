@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+    <div id="status">Connecting...</div>
+    <div id="out"></div>
+    <script>
+        const out = document.getElementById('out');
+        const status = document.getElementById('status');
+
+        const sse = new EventSource('https://api.indexsupply.net/query-live?query=select+block_num+from+transfer+order+by+1+desc+limit+1&event_signatures=Transfer%28address+indexed+from%2C+address+indexed+to%2C+uint256+value%29&chain=8453');
+        sse.onopen = () => { status.textContent = 'Connected' };
+		sse.onerror = () => { status.textContent = 'Disconnected' };
+        sse.onmessage = (event) => {
+            const div = document.createElement('div');
+            div.textContent = event.data.slice(0, 100);
+            out.append(div);
+        };
+    </script>
+</body>
+</html>
