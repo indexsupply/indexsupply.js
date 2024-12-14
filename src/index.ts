@@ -1,4 +1,4 @@
-export { 
+export {
   type QuerySingleData,
   type QuerySingleLiveOptions,
   type QuerySingleLiveRawFunction,
@@ -11,11 +11,4 @@ export {
   querySingleLive,
   querySingleLiveRaw,
   querySingleRaw,
- } from './api'
-// export {
-//   type GetProgressFunction,
-//   type RowFormatter,
-//   type SaveProgressFunction,
-//   type SyncClientOptions,
-//   SyncClientSingle
-// } from './sync-client'
+} from './api'

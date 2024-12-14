@@ -1,26 +1,23 @@
 import fetch from "cross-fetch";
 import EventSource from 'eventsource-platform-specific';
 
-const indexerUrl = 'https://api.indexsupply.net'
+const apiUrl = 'https://api.indexsupply.net'
 
 type APISchemaType = string[]
 type APIQueryRow = string[]
-type APIResultType = [] | [APISchemaType, ...APIQueryRow[]] 
+type APIResultType = [] | [APISchemaType, ...APIQueryRow[]]
 type APIDataFormat = {
   block_height: number
   result: APIResultType[]
 }
 
-// TODO(mal1->ryan): should we put the supported chains in the types so you dont need to consult the docs?
-// ex: 1 | 10 | 8453 | 84532
 export type SupportedChainId = number
 
 export type QuerySingleRawOptions = {
+  apiKey?: string,
   chainId: SupportedChainId
   query: string
   eventSignatures: ReadonlyArray<string>
-  // TODO: is this supported on single query, or just live query?
-  // blockNumber?: number
 }
 
 export type QuerySingleData<FormattedRow> = {
@@ -33,15 +30,13 @@ export type QuerySingleRawFunction = typeof querySingleRaw
 export async function querySingleRaw(options: QuerySingleRawOptions): Promise<QuerySingleData<string[]>> {
   const params = new URLSearchParams();
   params.append("chain", options.chainId.toString());
-  // if (options.blockNumber !== undefined) {
-  //   params.append("block_height", options.blockNumber.toString());
-  // }
   params.append("query", options.query);
-
-  // TODO(mal1->ryan): Check if this is how we're supposed to pass multiple signatures
   params.append("event_signatures", options.eventSignatures.join(','));
+  if (options.apiKey) {
+    params.append("api-key", options.apiKey.toString());
+  }
 
-  const response = await fetch(`${indexerUrl}/query?${params.toString()}`)
+  const response = await fetch(`${apiUrl}/query?${params.toString()}`)
   if (response.status !== 200) {
     throw new Error(`Invalid API response: Status ${response.status}`)
   }
@@ -85,6 +80,7 @@ export async function querySingle<FormattedRow>(
 }
 
 export type QuerySingleLiveRawOptions = {
+  apiKey?: string
   chainId: SupportedChainId
   query: string
   eventSignatures: ReadonlyArray<string>
@@ -92,15 +88,17 @@ export type QuerySingleLiveRawOptions = {
 }
 
 export async function* querySingleLiveRaw(options: QuerySingleLiveRawOptions): AsyncGenerator<QuerySingleData<string[]>> {
-  const params = new URLSearchParams({
-    chain: options.chainId.toString(),
-    query: options.query,
-    event_signatures: options.eventSignatures.join(','),
-  })
+  const params = new URLSearchParams();
+  params.append("chain", options.chainId.toString());
+  params.append("query", options.query);
+  params.append("event_signatures", options.eventSignatures.join(','));
+  if (options.apiKey) {
+    params.append("api-key", options.apiKey.toString());
+  }
   if (options.blockNumber) {
     params.append('block_height', options.blockNumber.toString())
   }
-  const url = new URL(`${indexerUrl}/query-live?${params}`)
+  const url = new URL(`${apiUrl}/query-live?${params}`)
 
   const eventSource = new EventSource(url.toString())
 
