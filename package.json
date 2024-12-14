@@ -1,6 +1,9 @@
 {
-  "name": "indexsupply.js",
   "version": "0.0.1",
+  "name": "@indexsupply/indexsupply.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "A Typescript wrapper for Index Supply's API",
   "main": "dist/server-index.js",
   "browser": "dist/browser-index.js",
@@ -15,13 +18,13 @@
     "build:types": "tsc --emitDeclarationOnly && rm dist/types/eventsource*.ts"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.705.0",
     "@types/bun": "latest",
     "@types/eventsource": "^1.1.15",
     "esbuild": "^0.18.20",
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.705.0",
     "cross-fetch": "^4.0.0",
     "eventsource": "^2.0.2"
   }
