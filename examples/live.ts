@@ -1,18 +1,26 @@
-import { querySingleLive } from '../src/index'
+import { queryLive } from "../src/index";
 
-type Address = `0x${string}`
+type Hex = `0x${string}`;
 
-const liveQuery = querySingleLive({
-  chainId: 8453,
-  eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 v)'],
-  query: 'select "from", "to", v from transfer limit 20',
-  formatRow: ([from, to, value]) => ({
-    from: from as Address,
-    to: to as Address,
-    value: BigInt(value),
-  })
-})
+type Transfer = {
+  tx: Hex;
+  block: bigint;
+};
 
-for await (const { blockNumber, result } of liveQuery) {
-  console.log(`New data at block ${blockNumber}:`, result)
+const query = queryLive({
+  chainId: 8453n,
+  eventSignatures: [
+    "Transfer(address indexed from, address indexed to, uint256 v)",
+  ],
+  query: "select tx_hash, block_num from transfer limit 1",
+  formatRow: ([tx_hash, block_num]) => {
+    return {
+      tx: tx_hash as Hex,
+      block: BigInt(block_num),
+    };
+  },
+});
+
+for await (const { blockNumber, result } of query) {
+  console.log(result);
 }

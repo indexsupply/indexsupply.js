@@ -10,7 +10,7 @@ A Typescript wrapper for Index Supply's API.
 Make a one-time query to get historical data:
 
 ```typescript
-const { blockNumber, result } = await querySingle({
+const { blockNumber, result } = await query({
   apiKey: "face",
   chainId: 8453,
   query: 'select "from", "to", value from transfer',
@@ -30,7 +30,7 @@ console.log(`Block ${blockNumber}:`, result)
 Subscribe to new data as it arrives:
 
 ```typescript
-const liveQuery = querySingleLive({
+const liveQuery = queryLive({
   apiKey: "face",
   chainId: 8453,
   blockNumber: 1234567, // Optional: start from specific block

@@ -1,156 +1,124 @@
 import fetch from "cross-fetch";
-import EventSource from 'eventsource-platform-specific';
+import EventSource from "eventsource-platform-specific";
 
-const apiUrl = 'https://api.indexsupply.net'
+export type Response<T> = {
+  blockNumber: bigint;
+  result: T[];
+};
 
-type APISchemaType = string[]
-type APIQueryRow = string[]
-type APIResultType = [] | [APISchemaType, ...APIQueryRow[]]
-type APIDataFormat = {
-  block_height: number
-  result: APIResultType[]
-}
+type JsonValue = ReturnType<typeof JSON.parse>;
+type DefaultType = { [key: string]: JsonValue };
+type Formatter<T> = (row: JsonValue[]) => T;
 
-export type SupportedChainId = number
+export type Request<T> = {
+  apiUrl?: string;
+  apiKey?: string;
+  chainId: bigint;
+  query: string;
+  eventSignatures?: ReadonlyArray<string>;
+  formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
+};
 
-export type QuerySingleRawOptions = {
-  apiKey?: string,
-  chainId: SupportedChainId
-  query: string
-  eventSignatures: ReadonlyArray<string>
-}
-
-export type QuerySingleData<FormattedRow> = {
-  blockNumber: number
-  result: FormattedRow[]
-}
-
-export type QuerySingleRawFunction = typeof querySingleRaw
-
-export async function querySingleRaw(options: QuerySingleRawOptions): Promise<QuerySingleData<string[]>> {
+function url<T>(
+  path: string,
+  request: Request<T> & { blockNumber?: bigint },
+): string {
   const params = new URLSearchParams();
-  params.append("chain", options.chainId.toString());
-  params.append("query", options.query);
-  params.append("event_signatures", options.eventSignatures.join(','));
-  if (options.apiKey) {
-    params.append("api-key", options.apiKey.toString());
+  params.append("chain", request.chainId.toString());
+  params.append("query", request.query);
+  if (request.eventSignatures) {
+    params.append("event_signatures", request.eventSignatures.join(","));
+  } else {
+    params.append("event_signatures", "");
   }
-
-  const response = await fetch(`${apiUrl}/query?${params.toString()}`)
-  if (response.status !== 200) {
-    throw new Error(`Invalid API response: Status ${response.status}`)
+  if (request.apiKey) {
+    params.append("api-key", request.apiKey.toString());
   }
-  const data = await response.json() as APIDataFormat;
+  if (request.blockNumber) {
+    params.append("block_height", request.blockNumber.toString());
+  }
+  let apiUrl = "https://api.indexsupply.net";
+  if (request.apiUrl) {
+    apiUrl = request.apiUrl;
+  }
+  return `${apiUrl}/${path}?${params.toString()}`;
+}
 
+const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
+  return (row: JsonValue[]) => {
+    if (row.length !== names.length) {
+      throw new Error(
+        `Row length (${row.length}) does not match column names length (${names.length})`,
+      );
+    }
+    return names.reduce((acc, name, index) => {
+      acc[name] = row[index];
+      return acc;
+    }, {} as DefaultType);
+  };
+};
+
+export async function query<T = DefaultType>(
+  request: Request<T>,
+): Promise<Response<T>> {
+  const resp = await fetch(url("query", request));
+  if (resp.status !== 200) {
+    throw new Error(`Invalid API response: Status ${resp.status}`);
+  }
+  const data = await resp.json();
   if (data.result.length === 0) {
-    return { blockNumber: data.block_height, result: [] }
+    return { blockNumber: data.block_height, result: [] };
   }
-
   if (data.result.length !== 1) {
-    throw new Error(`Expected 1 result, got ${data.result.length}`)
+    throw new Error(`Expected 1 result, got ${data.result.length}`);
   }
-
-  const result = data.result[0]
-
-  if (result.length === 0) {
-    return { blockNumber: data.block_height, result: [] }
+  const rows = data.result[0];
+  if (rows.length === 0) {
+    return { blockNumber: data.blockHeight, result: [] };
   }
-
+  const columnNames = rows.shift();
+  const formatRow = request.formatRow || defaultFormatRow(columnNames);
   return {
     blockNumber: data.block_height,
-    result: result.slice(1),
-  }
+    result: rows.map(formatRow),
+  };
 }
 
-export type QuerySingleLiveRawFunction = typeof querySingleLiveRaw
-
-export type QuerySingleOptions<FormattedRow> = QuerySingleRawOptions & {
-  formatRow: (row: string[]) => FormattedRow
-}
-
-export async function querySingle<FormattedRow>(
-  { formatRow, ...options }: QuerySingleOptions<FormattedRow>
-): Promise<QuerySingleData<FormattedRow>> {
-  const { blockNumber, result } = await querySingleRaw(options)
-
-  return {
-    blockNumber,
-    result: result.map(formatRow)
-  }
-}
-
-export type QuerySingleLiveRawOptions = {
-  apiKey?: string
-  chainId: SupportedChainId
-  query: string
-  eventSignatures: ReadonlyArray<string>
-  blockNumber?: number
-}
-
-export async function* querySingleLiveRaw(options: QuerySingleLiveRawOptions): AsyncGenerator<QuerySingleData<string[]>> {
-  const params = new URLSearchParams();
-  params.append("chain", options.chainId.toString());
-  params.append("query", options.query);
-  params.append("event_signatures", options.eventSignatures.join(','));
-  if (options.apiKey) {
-    params.append("api-key", options.apiKey.toString());
-  }
-  if (options.blockNumber) {
-    params.append('block_height', options.blockNumber.toString())
-  }
-  const url = new URL(`${apiUrl}/query-live?${params}`)
-
-  const eventSource = new EventSource(url.toString())
-
+export async function* queryLive<T = DefaultType>(
+  request: Request<T> & { blockNumber?: bigint },
+): AsyncGenerator<Response<T>> {
+  const eventSource = new EventSource(url("query-live", request));
   try {
     while (true) {
       const event = await new Promise<MessageEvent>((resolve, reject) => {
         eventSource.onmessage = (event) => {
-          resolve(event)
-        }
-
+          resolve(event);
+        };
         eventSource.onerror = (error) => {
-          reject(error)
-        }
-      })
-
-      const data = JSON.parse(event.data) as APIDataFormat
+          reject(error);
+        };
+      });
+      const data = JSON.parse(event.data);
       if (data.result.length === 0) {
-        yield { blockNumber: data.block_height, result: [] }
-        continue
+        yield { blockNumber: data.block_height, result: [] };
+        continue;
       }
-
       if (data.result.length !== 1) {
-        throw new Error(`Expected 1 result, got ${data.result.length}`)
+        throw new Error(`Expected 1 result, got ${data.result.length}`);
       }
-
-      const result = data.result[0]
+      let result = data.result[0];
       if (result.length === 0) {
-        yield { blockNumber: data.block_height, result: [] }
-        continue
+        yield { blockNumber: data.block_height, result: [] };
+        continue;
       }
-
+      const columnNames = result.shift();
+      const formatRow = request.formatRow || defaultFormatRow(columnNames);
       yield {
         blockNumber: data.block_height,
-        result: result.slice(1),
-      }
+        result: result.map(formatRow),
+      };
     }
   } finally {
-    eventSource.close()
-  }
-}
-
-export type QuerySingleLiveOptions<FormattedRow> = QuerySingleLiveRawOptions & {
-  formatRow: (row: string[]) => FormattedRow
-}
-
-export async function* querySingleLive<FormattedRow>(
-  { formatRow, ...options }: QuerySingleLiveOptions<FormattedRow>
-): AsyncGenerator<QuerySingleData<FormattedRow>> {
-  for await (const { blockNumber, result } of querySingleLiveRaw(options)) {
-    yield {
-      blockNumber,
-      result: result.map(formatRow),
-    }
+    eventSource.close();
   }
 }
