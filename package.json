@@ -5,27 +5,20 @@
     "access": "public"
   },
   "description": "A Typescript wrapper for Index Supply's API",
-  "main": "dist/server-index.js",
-  "browser": "dist/browser-index.js",
-  "types": "dist/types/index.d.ts",
+  "main": "dist/index.js",
+  "browser": "dist/browser/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "files": ["dist"],
   "scripts": {
-    "prebuild": "rm -rf dist && mkdir dist",
-    "build": "npm run build:server && npm run build:browser && npm run build:types",
-    "build:server": "esbuild src/index.ts --bundle --platform=node --outfile=dist/server-index.js --format=esm --alias:eventsource-platform-specific=./src/eventsource-node",
-    "build:browser": "esbuild src/index.ts --bundle --platform=browser --outfile=dist/browser-index.js --format=esm --alias:eventsource-platform-specific=./src/eventsource-browser",
-    "build:types": "tsc --emitDeclarationOnly && rm dist/types/eventsource*.ts"
+	"build": "bun run build.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.705.0",
     "@types/bun": "latest",
-    "@types/eventsource": "^1.1.15",
-    "esbuild": "^0.18.20",
-    "typescript": "^5.7.2"
+    "bun-plugin-dts": "^0.2.1"
   },
   "dependencies": {
-    "cross-fetch": "^4.0.0",
-    "eventsource": "^2.0.2"
+    "eventsource-client": "1.1.3"
   }
 }

@@ -1,5 +1,4 @@
-import fetch from "cross-fetch";
-import EventSource from "eventsource-platform-specific";
+import { createEventSource } from "eventsource-client";
 
 export type Response<T> = {
   blockNumber: bigint;
@@ -65,21 +64,22 @@ export async function query<T = DefaultType>(
   if (resp.status !== 200) {
     throw new Error(`Invalid API response: Status ${resp.status}`);
   }
-  const data = await resp.json();
-  if (data.result.length === 0) {
-    return { blockNumber: data.block_height, result: [] };
+  const data = await resp.text();
+  const parsed = JSON.parse(data);
+  if (parsed.result.length === 0) {
+    return { blockNumber: parsed.block_height, result: [] };
   }
-  if (data.result.length !== 1) {
-    throw new Error(`Expected 1 result, got ${data.result.length}`);
+  if (parsed.result.length !== 1) {
+    throw new Error(`Expected 1 result, got ${parsed.result.length}`);
   }
-  const rows = data.result[0];
+  const rows = parsed.result[0];
   if (rows.length === 0) {
-    return { blockNumber: data.blockHeight, result: [] };
+    return { blockNumber: parsed.block_height, result: [] };
   }
   const columnNames = rows.shift();
   const formatRow = request.formatRow || defaultFormatRow(columnNames);
   return {
-    blockNumber: data.block_height,
+    blockNumber: parsed.block_height,
     result: rows.map(formatRow),
   };
 }
@@ -87,38 +87,30 @@ export async function query<T = DefaultType>(
 export async function* queryLive<T = DefaultType>(
   request: Request<T> & { blockNumber?: bigint },
 ): AsyncGenerator<Response<T>> {
-  const eventSource = new EventSource(url("query-live", request));
+  const es = createEventSource(url("query-live", request));
   try {
-    while (true) {
-      const event = await new Promise<MessageEvent>((resolve, reject) => {
-        eventSource.onmessage = (event) => {
-          resolve(event);
-        };
-        eventSource.onerror = (error) => {
-          reject(error);
-        };
-      });
-      const data = JSON.parse(event.data);
-      if (data.result.length === 0) {
-        yield { blockNumber: data.block_height, result: [] };
+    for await (const { data } of es) {
+      let parsed = JSON.parse(data);
+      if (parsed.result.length === 0) {
+        yield { blockNumber: parsed.block_height, result: [] };
         continue;
       }
-      if (data.result.length !== 1) {
-        throw new Error(`Expected 1 result, got ${data.result.length}`);
+      if (parsed.result.length !== 1) {
+        throw new Error(`Expected 1 result, got ${parsed.result.length}`);
       }
-      let result = data.result[0];
+      let result = parsed.result[0];
       if (result.length === 0) {
-        yield { blockNumber: data.block_height, result: [] };
+        yield { blockNumber: parsed.block_height, result: [] };
         continue;
       }
       const columnNames = result.shift();
       const formatRow = request.formatRow || defaultFormatRow(columnNames);
       yield {
-        blockNumber: data.block_height,
+        blockNumber: parsed.block_height,
         result: result.map(formatRow),
       };
     }
   } finally {
-    eventSource.close();
+    es.close();
   }
 }
