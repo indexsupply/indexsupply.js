@@ -1,4 +1,4 @@
-import { query } from "../src/index";
+import { query } from "../src/index.ts";
 
 type Address = `0x${string}`;
 
@@ -11,4 +11,5 @@ const { blockNumber, result } = await query({
     'select block_num, log_idx, "from", "to", "value" from transfer limit 5',
 });
 
+console.log(`current block: ${blockNumber}`);
 result.forEach((r) => console.log(r.block_num));

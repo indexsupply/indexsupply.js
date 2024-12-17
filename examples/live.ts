@@ -1,4 +1,4 @@
-import { queryLive } from "../src/index";
+import { queryLive } from "../src/index.ts";
 
 type Hex = `0x${string}`;
 
@@ -7,7 +7,16 @@ type Transfer = {
   block: bigint;
 };
 
+const controller = new AbortController();
+setTimeout(() => {
+  controller.abort();
+}, 60_000);
+
+let latest = 23815440n;
+
 const query = queryLive({
+  abortSignal: controller.signal,
+  startBlock: () => (latest + 1n),
   chainId: 8453n,
   eventSignatures: [
     "Transfer(address indexed from, address indexed to, uint256 v)",
@@ -21,6 +30,11 @@ const query = queryLive({
   },
 });
 
-for await (const { blockNumber, result } of query) {
-  console.log(result);
+for await (const { result } of query) {
+  result.forEach((row) => {
+    if (row.block > latest) {
+      latest = row.block;
+    }
+    console.log(row);
+  });
 }

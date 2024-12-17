@@ -48,24 +48,19 @@ for await (const { blockNumber, result } of liveQuery) {
 }
 ```
 
-## Installation and Development Workflow
+## Local Development Setup
 
-### Installation
+```
+% node --version
+v22.12.0
 
-1. **Install Dependencies**
+% npm run example
 
-    Use Bun to install dependencies quickly:
+> @indexsupply/indexsupply.js@0.0.7 example
+> npx tsx examples/live.ts
 
-        bun install
-
-2. **Build the Project**
-
-    We use esbuild to build the project. Compile the project into the `dist` folder:
-
-        bun run build
-
-3. **Testing**
-
-    Run tests using Bun to ensure everything is working as expected:
-
-        bun test
+{
+  tx: '0x3f6664da84f4cc2f3bbfd5b9968ea0c06c4d89b682c920ee240f13d9824cbabf',
+  block: 23815441n
+}
+```
