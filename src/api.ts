@@ -1,5 +1,17 @@
 import { createEventSource } from "eventsource-client";
 
+/**
+ * Represents the response structure from the API
+ * @template T The type of the result items
+ * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
+ * @example
+ * type Response = {
+ *   blockNumber: 17829471n,
+ *   result: [
+ *     { address: "0x123...", value: "1000000000000000000" }
+ *   ]
+ * }
+ */
 export type Response<T> = {
   blockNumber: bigint;
   result: T[];
@@ -9,15 +21,46 @@ type JsonValue = ReturnType<typeof JSON.parse>;
 type DefaultType = { [key: string]: JsonValue };
 type Formatter<T> = (row: JsonValue[]) => T;
 
+/**
+ * Represents a request to the API
+ * @template T The expected return type of the formatted data
+ * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
+ * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
+ * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
+ * @example
+ * const request: Request<Transfer> = {
+ *   chainId: 1n,
+ *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
+ *   eventSignatures: ["Transfer(address,address,uint256)"],
+ *   formatRow: (row) => ({
+ *     from: row[0] as string,
+ *     to: row[1] as string,
+ *     value: row[2] as string
+ *   })
+ * }
+ */
 export type Request<T> = {
+  /** Optional custom API URL. Defaults to https://api.indexsupply.net */
   apiUrl?: string;
+  /** Optional API key for authentication */
   apiKey?: string;
+  /** Chain ID for the target blockchain */
   chainId: bigint;
+  /** SQL query to execute */
   query: string;
+  /** Optional array of event signatures to filter events */
   eventSignatures?: ReadonlyArray<string>;
+  /** Optional function to format the row data. Required if T is not DefaultType */
   formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
 };
 
+/**
+ * Constructs the API URL with query parameters
+ * @template T The type parameter for the request
+ * @param path - The API endpoint path
+ * @param request - The request configuration
+ * @returns Formatted URL string
+ */
 function url<T>(
   path: string,
   request: Request<T> & { blockNumber?: bigint },
@@ -43,6 +86,11 @@ function url<T>(
   return `${apiUrl}/${path}?${params.toString()}`;
 }
 
+/**
+ * Creates a default row formatter that maps column names to values
+ * @param names - Array of column names
+ * @returns A formatter function that creates an object with column name keys
+ */
 const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   return (row: JsonValue[]) => {
     if (row.length !== names.length) {
@@ -57,6 +105,33 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   };
 };
 
+/**
+ * Executes a query against the API and returns formatted results
+ * @template T The type of the formatted results
+ * @param request - The request configuration
+ * @returns Promise containing the block number and formatted results
+ * @throws Error if the API response is invalid or unexpected
+ * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
+ * @see {@link https://www.indexsupply.net/docs#queries Query types}
+ * @example
+ * const transfers = await query({
+ *   chainId: 1n,
+ *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
+ *   eventSignatures: ["Transfer(address,address,uint256)"]
+ * });
+ * 
+ * // With custom formatting
+ * interface Transfer { from: string; to: string; value: string }
+ * const formattedTransfers = await query<Transfer>({
+ *   chainId: 1n,
+ *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
+ *   formatRow: (row) => ({
+ *     from: row[0] as string,
+ *     to: row[1] as string,
+ *     value: row[2] as string
+ *   })
+ * });
+ */
 export async function query<T = DefaultType>(
   request: Request<T>,
 ): Promise<Response<T>> {
@@ -84,6 +159,38 @@ export async function query<T = DefaultType>(
   };
 }
 
+/**
+ * Creates a live query connection that yields results as they become available
+ * @template T The type of the formatted results
+ * @param request - The request configuration with optional starting block number
+ * @yields Response objects containing block numbers and formatted results
+ * @throws Error if the API response is invalid or unexpected
+ * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
+ * @see {@link https://www.indexsupply.net/docs#reorgs Chain reorganization handling}
+ * @example
+ * // Basic usage
+ * for await (const response of queryLive({
+ *   chainId: 1n,
+ *   query: "SELECT * FROM eth.traces",
+ *   blockNumber: 17829471n
+ * })) {
+ *   console.log(response.blockNumber, response.result);
+ * }
+ * 
+ * // With custom type and formatting
+ * interface Transfer { from: string; to: string; value: string }
+ * for await (const response of queryLive<Transfer>({
+ *   chainId: 1n,
+ *   query: "SELECT * FROM eth.traces",
+ *   formatRow: (row) => ({
+ *     from: row[0] as string,
+ *     to: row[1] as string,
+ *     value: row[2] as string
+ *   })
+ * })) {
+ *   console.log(response.blockNumber, response.result);
+ * }
+ */
 export async function* queryLive<T = DefaultType>(
   request: Request<T> & { blockNumber?: bigint },
 ): AsyncGenerator<Response<T>> {
