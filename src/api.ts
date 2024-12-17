@@ -5,7 +5,7 @@ import { createEventSource } from "eventsource-client";
  * @template T The type of the result items
  * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
  * @example
- * type Response = {
+ * type ExampleResponse = Response<{ address: string, value: string }> = {
  *   blockNumber: 17829471n,
  *   result: [
  *     { address: "0x123...", value: "1000000000000000000" }
@@ -28,10 +28,12 @@ type Formatter<T> = (row: JsonValue[]) => T;
  * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
  * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
  * @example
+ * interface Transfer { from: string; to: string; value: string }
+ * 
  * const request: Request<Transfer> = {
  *   chainId: 1n,
- *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
- *   eventSignatures: ["Transfer(address,address,uint256)"],
+ *   query: "SELECT from, to, value FROM transfer",
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
  *   formatRow: (row) => ({
  *     from: row[0] as string,
  *     to: row[1] as string,
@@ -114,17 +116,19 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
  * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
  * @see {@link https://www.indexsupply.net/docs#queries Query types}
  * @example
- * const transfers = await query({
+ * // Basic usage with default formatting
+ * const result = await query({
  *   chainId: 1n,
- *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
- *   eventSignatures: ["Transfer(address,address,uint256)"]
+ *   query: "SELECT from, to, value FROM transfer LIMIT 1",
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"]
  * });
  * 
- * // With custom formatting
+ * // With custom type and formatting
  * interface Transfer { from: string; to: string; value: string }
- * const formattedTransfers = await query<Transfer>({
+ * const transfers = await query<Transfer>({
  *   chainId: 1n,
- *   query: "SELECT * FROM eth.traces WHERE block_number = 17829471",
+ *   query: "SELECT from, to, value FROM transfer LIMIT 1",
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
  *   formatRow: (row) => ({
  *     from: row[0] as string,
  *     to: row[1] as string,
@@ -168,10 +172,11 @@ export async function query<T = DefaultType>(
  * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
  * @see {@link https://www.indexsupply.net/docs#reorgs Chain reorganization handling}
  * @example
- * // Basic usage
+ * // Basic usage with default formatting
  * for await (const response of queryLive({
  *   chainId: 1n,
- *   query: "SELECT * FROM eth.traces",
+ *   query: "SELECT from, to, value FROM transfer",
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
  *   blockNumber: 17829471n
  * })) {
  *   console.log(response.blockNumber, response.result);
@@ -181,7 +186,8 @@ export async function query<T = DefaultType>(
  * interface Transfer { from: string; to: string; value: string }
  * for await (const response of queryLive<Transfer>({
  *   chainId: 1n,
- *   query: "SELECT * FROM eth.traces",
+ *   query: "SELECT from, to, value FROM transfer",
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
  *   formatRow: (row) => ({
  *     from: row[0] as string,
  *     to: row[1] as string,

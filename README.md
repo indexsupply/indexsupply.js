@@ -69,3 +69,7 @@ for await (const { blockNumber, result } of liveQuery) {
     Run tests using Bun to ensure everything is working as expected:
 
         bun test
+
+## Typesafety
+
+Typesafety can be provided by providing a generic return type to `query` or `queryLive`. Or you can use [pgtyped](https://github.com/adelsz/pgtyped?tab=readme-ov-file) to write your queries in a `.sql` file.
