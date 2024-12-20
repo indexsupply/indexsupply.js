@@ -31,6 +31,7 @@
   },
   "scripts": {
     "build": "npx tsc",
+    "test": "npx tsx --test",
     "example": "npx tsx examples/live.ts"
   },
   "engines": {
