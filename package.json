@@ -1,6 +1,18 @@
 {
-  "version": "0.0.7",
+  "version": "0.0.8",
   "name": "@indexsupply/indexsupply.js",
+  "keywords": [
+    "ethereum",
+    "indexing"
+  ],
+  "license": "MIT",
+  "homepage": "https://www.indexsupply.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/indexsupply/indexsupply.js.git"
+  },
+  "bugs": "https://github.com/indexsupply/indexsupply.js/issues",
+  "author": "Ryan Smith <r@32k.io>",
   "type": "module",
   "private": false,
   "sideEffects": false,
@@ -20,6 +32,9 @@
   "scripts": {
     "build": "npx tsc",
     "example": "npx tsx examples/live.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.705.0",
