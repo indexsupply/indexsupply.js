@@ -250,7 +250,6 @@ export async function* queryLive<T = DefaultType>(
   signals.push(AbortSignal.timeout(60_000));
   if (userRequest.abortSignal) {
     userRequest.abortSignal.addEventListener("abort", () => {
-      console.log("shutting down");
       running = false;
     });
     signals.push(userRequest.abortSignal);
@@ -273,6 +272,8 @@ export async function* queryLive<T = DefaultType>(
     } catch (error) {
       if (error instanceof DOMException && error.name === "TimeoutError") {
         console.log(error.name);
+      } else if (!running) {
+        return;
       } else {
         throw error;
       }
