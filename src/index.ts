@@ -1,3 +1,5 @@
+import { debug } from "./logger.js";
+
 async function retry<T>(f: () => Promise<T>): Promise<T> {
   let finalError;
   for (let i = 1; ; i++) {
@@ -7,9 +9,9 @@ async function retry<T>(f: () => Promise<T>): Promise<T> {
       finalError = e;
       if (i <= 5) {
         const timeout = Math.min(500, 100 * 2 ** i);
-        await new Promise((r) => setTimeout(r, timeout));
+        await delay(timeout);
       } else {
-        console.warn(`error ${e} retrying ${5 - i} more times.`);
+        debug(`error ${e} retrying ${5 - i} more times.`);
         break;
       }
     }
@@ -17,61 +19,67 @@ async function retry<T>(f: () => Promise<T>): Promise<T> {
   throw finalError;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export type JsonValue = ReturnType<typeof JSON.parse>;
 export type Formatter<T> = (row: JsonValue[]) => T;
 type DefaultType = { [key: string]: JsonValue };
 
-/**
- * Represents a request to the API
- * @template T The expected return type of the formatted data
- * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
- * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
- * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
- * @example
- * interface Transfer { from: string; to: string; value: string }
- *
- * const request: Request<Transfer> = {
- *   chainId: 1n,
- *   query: 'SELECT "from", "to", value FROM transfer',
- *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
- *   formatRow: (row) => ({
- *     from: row[0] as string,
- *     to: row[1] as string,
- *     value: row[2] as string
- *   })
- * }
- */
-export type Request<T> = {
-  /** Optional custom API URL. Defaults to https://api.indexsupply.net */
-  apiUrl?: string;
-  /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
-  apiKey?: string;
-  /** Chain ID for the target blockchain */
-  chainId: bigint;
-  /** SQL query to execute */
-  query: string;
-  /** Optional array of event signatures to filter events */
-  eventSignatures?: ReadonlyArray<string>;
-  /** Optional function to format the row data. Required if T is not DefaultType */
-  formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
-};
+namespace IS {
+  /**
+   * Represents a request to the API
+   * @template T The expected return type of the formatted data
+   * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
+   * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
+   * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
+   * @example
+   * interface Transfer { from: string; to: string; value: string }
+   *
+   * const request: Request<Transfer> = {
+   *   chainId: 1n,
+   *   query: 'SELECT "from", "to", value FROM transfer',
+   *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
+   *   formatRow: (row) => ({
+   *     from: row[0] as string,
+   *     to: row[1] as string,
+   *     value: row[2] as string
+   *   })
+   * }
+   */
+  export type Request<T> = {
+    /** Optional custom API URL. Defaults to https://api.indexsupply.net */
+    apiUrl?: string;
+    /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
+    apiKey?: string;
+    /** Chain ID for the target blockchain */
+    chainId: bigint;
+    /** SQL query to execute */
+    query: string;
+    /** Optional array of event signatures to filter events */
+    eventSignatures?: ReadonlyArray<string>;
+    /** Optional function to format the row data. Required if T is not DefaultType */
+    formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
+  };
 
-/**
- * Represents the response structure from the API
- * @template T The type of the result items
- * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
- * @example
- * type ExampleResponse = Response<{ address: string, value: string }> = {
- *   blockNumber: 17829471n,
- *   result: [
- *     { address: "0x123...", value: "1000000000000000000" }
- *   ]
- * }
- */
-export type Response<T> = {
-  blockNumber: bigint;
-  result: T[];
-};
+  /**
+   * Represents the response structure from the API
+   * @template T The type of the result items
+   * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
+   * @example
+   * type ExampleResponse = IS.Response<{ address: string, value: string }> = {
+   *   blockNumber: 17829471n,
+   *   result: [
+   *     { address: "0x123...", value: "1000000000000000000" }
+   *   ]
+   * }
+   */
+  export type Response<T> = {
+    blockNumber: bigint;
+    result: T[];
+  };
+}
 
 /**
  * Constructs the API URL with query parameters
@@ -82,7 +90,7 @@ export type Response<T> = {
  */
 function url<T>(
   path: string,
-  request: Request<T> & { startBlock?: startBlock },
+  request: IS.Request<T> & { startBlock?: startBlock },
 ): string {
   const params = new URLSearchParams();
   params.append("chain", request.chainId.toString());
@@ -124,7 +132,10 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   };
 };
 
-function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
+function parseJSON<T>(
+  payload: string,
+  formatRow?: Formatter<T>,
+): IS.Response<T> {
   const parsed = JSON.parse(payload);
   if (parsed.result.length === 0) {
     return { blockNumber: parsed.block_height, result: [] };
@@ -170,8 +181,8 @@ function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
  * });
  */
 export async function query<T = DefaultType>(
-  request: Request<T>,
-): Promise<Response<T>> {
+  request: IS.Request<T>,
+): Promise<IS.Response<T>> {
   return await retry(async () => {
     const resp = await fetch(url("query", request));
     if (resp.status !== 200) {
@@ -200,6 +211,21 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
 
 export type startBlock = () => bigint;
 
+interface RetryConfig {
+  maxAttempts: number;
+  baseDelay: number;
+  maxDelay: number;
+  delay: number;
+}
+
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxAttempts: 10,
+  baseDelay: 1000,
+  maxDelay: 10000,
+  delay: 1000,
+};
+
+const DEFAULT_TIMEOUT = 60_000;
 /**
  * Creates a live query connection that yields results as the API indexes new blocks
  * @template T The type of the formatted results
@@ -209,7 +235,7 @@ export type startBlock = () => bigint;
  latest block processed in a database (using your database's transaction system)
  * @param userRequest.abortSignal - When provided, and when an abort is provided, this function will
  return once it is finished with it's current request.
- * @yields Response objects containing block numbers and formatted results
+ * @yields IS.Response objects containing block numbers and formatted results
  * @throws Error if the API response is invalid or unexpected
  * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
  * @see {@link https://www.indexsupply.net/docs#reorgs Chain reorganization handling}
@@ -240,43 +266,111 @@ export type startBlock = () => bigint;
  * }
  */
 export async function* queryLive<T = DefaultType>(
-  userRequest: Request<T> & {
+  userRequest: IS.Request<T> & {
     abortSignal?: AbortSignal;
     startBlock?: startBlock;
+    retryConfig?: Partial<RetryConfig>;
+    timeout?: number;
   },
-): AsyncGenerator<Response<T>> {
+): AsyncGenerator<IS.Response<T>, void, unknown> {
   let running = true;
-  const signals: AbortSignal[] = [];
-  signals.push(AbortSignal.timeout(60_000));
-  if (userRequest.abortSignal) {
-    userRequest.abortSignal.addEventListener("abort", () => {
-      running = false;
-    });
-    signals.push(userRequest.abortSignal);
-  }
-  do {
+  let attempt = 0;
+  const config = {
+    ...DEFAULT_RETRY_CONFIG,
+    timeout: userRequest.timeout ?? DEFAULT_TIMEOUT,
+    ...userRequest.retryConfig,
+    get delay(): number {
+      return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
+    },
+  };
+
+  userRequest.abortSignal?.addEventListener("abort", () => {
+    running = false;
+  });
+
+  while (running) {
+    const timeoutSignal = AbortSignal.timeout(config.timeout);
+    const signals = [timeoutSignal];
+
+    if (userRequest.abortSignal) {
+      signals.push(userRequest.abortSignal);
+    }
+
     try {
       const response = await fetch(url("query-live", userRequest), {
         signal: AbortSignal.any(signals),
       });
+
       if (response.status !== 200) {
-        throw new Error(`Index Supply API error: ${response.status}`);
+        await handleServerError(response, attempt, config);
       }
+
       if (!response.body) {
         throw new Error(`Index Supply API response missing body`);
       }
+
       const reader = response.body.getReader() as Stream;
+      attempt = 0; // Reset counter on successful connection
+
       for await (const payload of readStream(reader)) {
         yield parseJSON(payload, userRequest.formatRow);
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === "TimeoutError") {
-        console.log(error.name);
-      } else if (!running) {
-        return;
-      } else {
-        throw error;
-      }
+      if (!running) return;
+
+      const shouldRetry = await handleClientError(error, attempt, config);
+      if (!shouldRetry) throw error;
+
+      attempt++;
     }
-  } while (running);
+  }
+}
+
+async function handleServerError(
+  response: Response,
+  attempt: number,
+  config: RetryConfig & { timeout: number },
+) {
+  if (response.status === 429) {
+    debug(`Rate limited, retrying in ${config.delay}ms`);
+    if (attempt >= config.maxAttempts) {
+      throw new Error(
+        `Exceeded max attempts (${config.maxAttempts}), aborting...`,
+      );
+    }
+    await delay(config.delay);
+  } else if (response.status === 408) {
+    throw new Error("Timeout error, retrying...");
+  } else {
+    throw new Error(
+      `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
+    );
+  }
+}
+
+async function handleClientError(
+  error: unknown,
+  attempt: number,
+  config: RetryConfig & { timeout: number },
+): Promise<boolean> {
+  if (error instanceof Error && error.name === "AbortError") {
+    debug(`Restarting...`);
+    return true;
+  }
+
+  debug(`Error: ${error}`);
+  if (attempt >= config.maxAttempts) {
+    if (error instanceof Error) {
+      throw new Error(`Failed after ${attempt} attempts: ${error.message}`);
+    }
+    throw error;
+  }
+
+  debug(
+    `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
+      config.delay
+    }ms`,
+  );
+  await delay(config.delay);
+  return true;
 }
