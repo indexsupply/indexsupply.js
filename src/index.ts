@@ -1,3 +1,61 @@
+export enum LogLevel {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+}
+
+type LoggerConfig = {
+  logLevel: LogLevel;
+  logHandler: (level: LogLevel, message: string, ...args: unknown[]) => void;
+};
+
+const defaultConfig: LoggerConfig = {
+  logLevel: LogLevel.INFO,
+  logHandler: (level, message, ...args) => {
+    const levelName = LogLevel[level];
+    console.log(`[${levelName}] ${message}`, ...args);
+  },
+};
+
+let currentConfig: LoggerConfig = { ...defaultConfig };
+
+export const setLogLevel = (level: LogLevel): void => {
+  currentConfig.logLevel = level;
+};
+
+export const setLogHandler = (
+  handler: (level: LogLevel, message: string, ...args: unknown[]) => void,
+): void => {
+  currentConfig.logHandler = handler;
+};
+
+export const log = (
+  level: LogLevel,
+  message: string,
+  ...args: unknown[]
+): void => {
+  if (level <= currentConfig.logLevel) {
+    currentConfig.logHandler(level, message, ...args);
+  }
+};
+
+export const error = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.ERROR, message, ...args);
+};
+
+export const warn = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.WARN, message, ...args);
+};
+
+export const info = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.INFO, message, ...args);
+};
+
+export const debug = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.DEBUG, message, ...args);
+};
+
 async function retry<T>(f: () => Promise<T>): Promise<T> {
   let finalError;
   for (let i = 1; ; i++) {
@@ -7,14 +65,18 @@ async function retry<T>(f: () => Promise<T>): Promise<T> {
       finalError = e;
       if (i <= 5) {
         const timeout = Math.min(500, 100 * 2 ** i);
-        await new Promise((r) => setTimeout(r, timeout));
+        await delay(timeout);
       } else {
-        console.warn(`error ${e} retrying ${5 - i} more times.`);
+        debug(`error ${e} retrying ${5 - i} more times.`);
         break;
       }
     }
   }
   throw finalError;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export type JsonValue = ReturnType<typeof JSON.parse>;
@@ -201,6 +263,27 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
 export type startBlock = () => bigint;
 
 /**
+ * maxAttempts - The maximum number of attempts before giving up
+ * baseDelay - The initial delay in milliseconds
+ * maxDelay - The maximum delay in milliseconds
+ * delay - The current delay in milliseconds
+ */
+interface RetryConfig {
+  maxAttempts?: number;
+  baseDelay: number;
+  maxDelay: number;
+}
+
+/**
+ * By default retries will happen indefinitely, set maxAttempts to limit the number of retries
+ */
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  baseDelay: 1000,
+  maxDelay: 10000,
+};
+
+const DEFAULT_TIMEOUT = 60_000;
+/**
  * Creates a live query connection that yields results as the API indexes new blocks
  * @template T The type of the formatted results
  * @param userRequest - The request configuration with optional starting block number
@@ -243,40 +326,93 @@ export async function* queryLive<T = DefaultType>(
   userRequest: Request<T> & {
     abortSignal?: AbortSignal;
     startBlock?: startBlock;
+    retryConfig?: Partial<RetryConfig>;
+    timeout?: number;
   },
-): AsyncGenerator<Response<T>> {
-  let running = true;
-  const signals: AbortSignal[] = [];
-  signals.push(AbortSignal.timeout(60_000));
-  if (userRequest.abortSignal) {
-    userRequest.abortSignal.addEventListener("abort", () => {
-      running = false;
-    });
-    signals.push(userRequest.abortSignal);
-  }
-  do {
+): AsyncGenerator<Response<T>, void, unknown> {
+  let userRequestedAbort = false;
+  let attempt = 0;
+  const config = {
+    ...DEFAULT_RETRY_CONFIG,
+    timeout: userRequest.timeout ?? DEFAULT_TIMEOUT,
+    ...userRequest.retryConfig,
+    get delay(): number {
+      return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
+    },
+  };
+
+  userRequest.abortSignal?.addEventListener("abort", () => {
+    userRequestedAbort = true;
+  });
+
+  while (!userRequestedAbort) {
+    const timeoutSignal = AbortSignal.timeout(config.timeout);
+    const signals = [timeoutSignal];
+
+    if (userRequest.abortSignal) {
+      signals.push(userRequest.abortSignal);
+    }
+
     try {
       const response = await fetch(url("query-live", userRequest), {
         signal: AbortSignal.any(signals),
       });
+
       if (response.status !== 200) {
-        throw new Error(`Index Supply API error: ${response.status}`);
+        if (response.status === 429) {
+          throw `Rate limited, retrying in ${config.delay}ms`;
+        } else if (response.status === 408) {
+          debug("Timeout error, retrying...");
+          // retry immediately
+          continue;
+        } else {
+          throw new Error(
+            `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
+          );
+        }
       }
+
       if (!response.body) {
         throw new Error(`Index Supply API response missing body`);
       }
+
       const reader = response.body.getReader() as Stream;
+      attempt = 0; // Reset counter on successful connection
+
       for await (const payload of readStream(reader)) {
         yield parseJSON(payload, userRequest.formatRow);
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === "TimeoutError") {
-        console.log(error.name);
-      } else if (!running) {
-        return;
-      } else {
-        throw error;
+      if (userRequestedAbort) return;
+
+      if (error instanceof Error && error.name === "AbortError") {
+        debug(`Restarting...`);
+        continue;
       }
+
+      debug(`Error: ${error}`);
+      if (config.maxAttempts) {
+        if (attempt === config.maxAttempts) {
+          if (error instanceof Error) {
+            throw new Error(
+              `Failed after ${attempt} attempts: ${error.message}`,
+            );
+          }
+          throw error;
+        }
+
+        debug(
+          `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
+            config.delay
+          }ms`,
+        );
+      } else {
+        debug(`Attempt failed, retrying in ${config.delay}ms`);
+      }
+
+      await delay(config.delay);
+
+      attempt++;
     }
-  } while (running);
+  }
 }
