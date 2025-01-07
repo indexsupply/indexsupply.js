@@ -308,7 +308,17 @@ export async function* queryLive<T = DefaultType>(
       });
 
       if (response.status !== 200) {
-        await handleStatusCode(response, attempt, config);
+        if (response.status === 429) {
+          throw `Rate limited, retrying in ${config.delay}ms`;
+        } else if (response.status === 408) {
+          debug("Timeout error, retrying...");
+          // retry immediately
+          continue;
+        } else {
+          throw new Error(
+            `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
+          );
+        }
       }
 
       if (!response.body) {
@@ -346,27 +356,5 @@ export async function* queryLive<T = DefaultType>(
 
       attempt++;
     }
-  }
-}
-
-async function handleStatusCode(
-  response: Response,
-  attempt: number,
-  config: RetryConfig & { timeout: number },
-) {
-  if (response.status === 429) {
-    debug(`Rate limited, retrying in ${config.delay}ms`);
-    if (attempt >= config.maxAttempts) {
-      throw new Error(
-        `Exceeded max attempts (${config.maxAttempts}), aborting...`,
-      );
-    }
-    await delay(config.delay);
-  } else if (response.status === 408) {
-    throw new Error("Timeout error, retrying...");
-  } else {
-    throw new Error(
-      `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
-    );
   }
 }
