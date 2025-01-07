@@ -1,4 +1,60 @@
-import { debug } from "./logger.js";
+export enum LogLevel {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+}
+
+type LoggerConfig = {
+  logLevel: LogLevel;
+  logHandler: (level: LogLevel, message: string, ...args: unknown[]) => void;
+};
+
+const defaultConfig: LoggerConfig = {
+  logLevel: LogLevel.INFO,
+  logHandler: (level, message, ...args) => {
+    const levelName = LogLevel[level];
+    console.log(`[${levelName}] ${message}`, ...args);
+  },
+};
+
+let currentConfig: LoggerConfig = { ...defaultConfig };
+
+export const setLogLevel = (level: LogLevel): void => {
+  currentConfig.logLevel = level;
+};
+
+export const setLogHandler = (
+  handler: (level: LogLevel, message: string, ...args: unknown[]) => void,
+): void => {
+  currentConfig.logHandler = handler;
+};
+
+export const log = (
+  level: LogLevel,
+  message: string,
+  ...args: unknown[]
+): void => {
+  if (level <= currentConfig.logLevel) {
+    currentConfig.logHandler(level, message, ...args);
+  }
+};
+
+export const error = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.ERROR, message, ...args);
+};
+
+export const warn = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.WARN, message, ...args);
+};
+
+export const info = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.INFO, message, ...args);
+};
+
+export const debug = (message: string, ...args: unknown[]): void => {
+  log(LogLevel.DEBUG, message, ...args);
+};
 
 async function retry<T>(f: () => Promise<T>): Promise<T> {
   let finalError;
@@ -130,10 +186,7 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   };
 };
 
-function parseJSON<T>(
-  payload: string,
-  formatRow?: Formatter<T>,
-): Response<T> {
+function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
   const parsed = JSON.parse(payload);
   if (parsed.result.length === 0) {
     return { blockNumber: parsed.block_height, result: [] };
@@ -216,17 +269,17 @@ export type startBlock = () => bigint;
  * delay - The current delay in milliseconds
  */
 interface RetryConfig {
-  maxAttempts: number;
+  maxAttempts?: number;
   baseDelay: number;
   maxDelay: number;
-  delay: number;
 }
 
+/**
+ * By default retries will happen indefinitely, set maxAttempts to limit the number of retries
+ */
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxAttempts: 10,
   baseDelay: 1000,
   maxDelay: 10000,
-  delay: 1000,
 };
 
 const DEFAULT_TIMEOUT = 60_000;
@@ -277,7 +330,7 @@ export async function* queryLive<T = DefaultType>(
     timeout?: number;
   },
 ): AsyncGenerator<Response<T>, void, unknown> {
-  let userRequestedAbort = true;
+  let userRequestedAbort = false;
   let attempt = 0;
   const config = {
     ...DEFAULT_RETRY_CONFIG,
@@ -289,10 +342,10 @@ export async function* queryLive<T = DefaultType>(
   };
 
   userRequest.abortSignal?.addEventListener("abort", () => {
-    userRequestedAbort = false;
+    userRequestedAbort = true;
   });
 
-  while (userRequestedAbort) {
+  while (!userRequestedAbort) {
     const timeoutSignal = AbortSignal.timeout(config.timeout);
     const signals = [timeoutSignal];
 
@@ -330,7 +383,7 @@ export async function* queryLive<T = DefaultType>(
         yield parseJSON(payload, userRequest.formatRow);
       }
     } catch (error) {
-      if (!running) return;
+      if (userRequestedAbort) return;
 
       if (error instanceof Error && error.name === "AbortError") {
         debug(`Restarting...`);
@@ -338,18 +391,25 @@ export async function* queryLive<T = DefaultType>(
       }
 
       debug(`Error: ${error}`);
-      if (attempt === config.maxAttempts) {
-        if (error instanceof Error) {
-          throw new Error(`Failed after ${attempt} attempts: ${error.message}`);
+      if (config.maxAttempts) {
+        if (attempt === config.maxAttempts) {
+          if (error instanceof Error) {
+            throw new Error(
+              `Failed after ${attempt} attempts: ${error.message}`,
+            );
+          }
+          throw error;
         }
-        throw error;
+
+        debug(
+          `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
+            config.delay
+          }ms`,
+        );
+      } else {
+        debug(`Attempt failed, retrying in ${config.delay}ms`);
       }
 
-      debug(
-        `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
-          config.delay
-        }ms`,
-      );
       await delay(config.delay);
 
       attempt++;
