@@ -211,6 +211,12 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
 
 export type startBlock = () => bigint;
 
+/**
+ * maxAttempts - The maximum number of attempts before giving up
+ * baseDelay - The initial delay in milliseconds
+ * maxDelay - The maximum delay in milliseconds
+ * delay - The current delay in milliseconds
+ */
 interface RetryConfig {
   maxAttempts: number;
   baseDelay: number;
@@ -302,7 +308,7 @@ export async function* queryLive<T = DefaultType>(
       });
 
       if (response.status !== 200) {
-        await handleServerError(response, attempt, config);
+        await handleStatusCode(response, attempt, config);
       }
 
       if (!response.body) {
@@ -318,15 +324,32 @@ export async function* queryLive<T = DefaultType>(
     } catch (error) {
       if (!running) return;
 
-      const shouldRetry = await handleClientError(error, attempt, config);
-      if (!shouldRetry) throw error;
+      if (error instanceof Error && error.name === "AbortError") {
+        debug(`Restarting...`);
+        continue;
+      }
+
+      debug(`Error: ${error}`);
+      if (attempt === config.maxAttempts) {
+        if (error instanceof Error) {
+          throw new Error(`Failed after ${attempt} attempts: ${error.message}`);
+        }
+        throw error;
+      }
+
+      debug(
+        `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
+          config.delay
+        }ms`,
+      );
+      await delay(config.delay);
 
       attempt++;
     }
   }
 }
 
-async function handleServerError(
+async function handleStatusCode(
   response: Response,
   attempt: number,
   config: RetryConfig & { timeout: number },
@@ -346,31 +369,4 @@ async function handleServerError(
       `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
     );
   }
-}
-
-async function handleClientError(
-  error: unknown,
-  attempt: number,
-  config: RetryConfig & { timeout: number },
-): Promise<boolean> {
-  if (error instanceof Error && error.name === "AbortError") {
-    debug(`Restarting...`);
-    return true;
-  }
-
-  debug(`Error: ${error}`);
-  if (attempt >= config.maxAttempts) {
-    if (error instanceof Error) {
-      throw new Error(`Failed after ${attempt} attempts: ${error.message}`);
-    }
-    throw error;
-  }
-
-  debug(
-    `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
-      config.delay
-    }ms`,
-  );
-  await delay(config.delay);
-  return true;
 }
