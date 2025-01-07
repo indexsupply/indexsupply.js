@@ -27,59 +27,57 @@ export type JsonValue = ReturnType<typeof JSON.parse>;
 export type Formatter<T> = (row: JsonValue[]) => T;
 type DefaultType = { [key: string]: JsonValue };
 
-namespace IS {
-  /**
-   * Represents a request to the API
-   * @template T The expected return type of the formatted data
-   * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
-   * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
-   * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
-   * @example
-   * interface Transfer { from: string; to: string; value: string }
-   *
-   * const request: Request<Transfer> = {
-   *   chainId: 1n,
-   *   query: 'SELECT "from", "to", value FROM transfer',
-   *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
-   *   formatRow: (row) => ({
-   *     from: row[0] as string,
-   *     to: row[1] as string,
-   *     value: row[2] as string
-   *   })
-   * }
-   */
-  export type Request<T> = {
-    /** Optional custom API URL. Defaults to https://api.indexsupply.net */
-    apiUrl?: string;
-    /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
-    apiKey?: string;
-    /** Chain ID for the target blockchain */
-    chainId: bigint;
-    /** SQL query to execute */
-    query: string;
-    /** Optional array of event signatures to filter events */
-    eventSignatures?: ReadonlyArray<string>;
-    /** Optional function to format the row data. Required if T is not DefaultType */
-    formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
-  };
+/**
+ * Represents a request to the API
+ * @template T The expected return type of the formatted data
+ * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
+ * @see {@link https://www.indexsupply.net/docs#chains Supported chains}
+ * @see {@link https://www.indexsupply.net/docs#sql SQL query syntax}
+ * @example
+ * interface Transfer { from: string; to: string; value: string }
+ *
+ * const request: Request<Transfer> = {
+ *   chainId: 1n,
+ *   query: 'SELECT "from", "to", value FROM transfer',
+ *   eventSignatures: ["Transfer(address indexed from, address indexed to, uint256 value)"],
+ *   formatRow: (row) => ({
+ *     from: row[0] as string,
+ *     to: row[1] as string,
+ *     value: row[2] as string
+ *   })
+ * }
+ */
+export type Request<T> = {
+  /** Optional custom API URL. Defaults to https://api.indexsupply.net */
+  apiUrl?: string;
+  /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
+  apiKey?: string;
+  /** Chain ID for the target blockchain */
+  chainId: bigint;
+  /** SQL query to execute */
+  query: string;
+  /** Optional array of event signatures to filter events */
+  eventSignatures?: ReadonlyArray<string>;
+  /** Optional function to format the row data. Required if T is not DefaultType */
+  formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
+};
 
-  /**
-   * Represents the response structure from the API
-   * @template T The type of the result items
-   * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
-   * @example
-   * type ExampleResponse = IS.Response<{ address: string, value: string }> = {
-   *   blockNumber: 17829471n,
-   *   result: [
-   *     { address: "0x123...", value: "1000000000000000000" }
-   *   ]
-   * }
-   */
-  export type Response<T> = {
-    blockNumber: bigint;
-    result: T[];
-  };
-}
+/**
+ * Represents the response structure from the API
+ * @template T The type of the result items
+ * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
+ * @example
+ * type ExampleResponse = Response<{ address: string, value: string }> = {
+ *   blockNumber: 17829471n,
+ *   result: [
+ *     { address: "0x123...", value: "1000000000000000000" }
+ *   ]
+ * }
+ */
+export type Response<T> = {
+  blockNumber: bigint;
+  result: T[];
+};
 
 /**
  * Constructs the API URL with query parameters
@@ -90,7 +88,7 @@ namespace IS {
  */
 function url<T>(
   path: string,
-  request: IS.Request<T> & { startBlock?: startBlock },
+  request: Request<T> & { startBlock?: startBlock },
 ): string {
   const params = new URLSearchParams();
   params.append("chain", request.chainId.toString());
@@ -135,7 +133,7 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
 function parseJSON<T>(
   payload: string,
   formatRow?: Formatter<T>,
-): IS.Response<T> {
+): Response<T> {
   const parsed = JSON.parse(payload);
   if (parsed.result.length === 0) {
     return { blockNumber: parsed.block_height, result: [] };
@@ -181,8 +179,8 @@ function parseJSON<T>(
  * });
  */
 export async function query<T = DefaultType>(
-  request: IS.Request<T>,
-): Promise<IS.Response<T>> {
+  request: Request<T>,
+): Promise<Response<T>> {
   return await retry(async () => {
     const resp = await fetch(url("query", request));
     if (resp.status !== 200) {
@@ -241,7 +239,7 @@ const DEFAULT_TIMEOUT = 60_000;
  latest block processed in a database (using your database's transaction system)
  * @param userRequest.abortSignal - When provided, and when an abort is provided, this function will
  return once it is finished with it's current request.
- * @yields IS.Response objects containing block numbers and formatted results
+ * @yields Response objects containing block numbers and formatted results
  * @throws Error if the API response is invalid or unexpected
  * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
  * @see {@link https://www.indexsupply.net/docs#reorgs Chain reorganization handling}
@@ -272,14 +270,14 @@ const DEFAULT_TIMEOUT = 60_000;
  * }
  */
 export async function* queryLive<T = DefaultType>(
-  userRequest: IS.Request<T> & {
+  userRequest: Request<T> & {
     abortSignal?: AbortSignal;
     startBlock?: startBlock;
     retryConfig?: Partial<RetryConfig>;
     timeout?: number;
   },
-): AsyncGenerator<IS.Response<T>, void, unknown> {
-  let running = true;
+): AsyncGenerator<Response<T>, void, unknown> {
+  let userRequestedAbort = true;
   let attempt = 0;
   const config = {
     ...DEFAULT_RETRY_CONFIG,
@@ -291,10 +289,10 @@ export async function* queryLive<T = DefaultType>(
   };
 
   userRequest.abortSignal?.addEventListener("abort", () => {
-    running = false;
+    userRequestedAbort = false;
   });
 
-  while (running) {
+  while (userRequestedAbort) {
     const timeoutSignal = AbortSignal.timeout(config.timeout);
     const signals = [timeoutSignal];
 
