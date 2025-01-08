@@ -56,25 +56,6 @@ export const debug = (message: string, ...args: unknown[]): void => {
   log(LogLevel.DEBUG, message, ...args);
 };
 
-async function retry<T>(f: () => Promise<T>): Promise<T> {
-  let finalError;
-  for (let i = 1; ; i++) {
-    try {
-      return await f();
-    } catch (e) {
-      finalError = e;
-      if (i <= 5) {
-        const timeout = Math.min(500, 100 * 2 ** i);
-        await delay(timeout);
-      } else {
-        debug(`error ${e} retrying ${5 - i} more times.`);
-        break;
-      }
-    }
-  }
-  throw finalError;
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -232,15 +213,71 @@ function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
  * });
  */
 export async function query<T = DefaultType>(
-  request: Request<T>,
+  request: Request<T> & {
+    abortSignal?: AbortSignal;
+    startBlock?: startBlock;
+    retryConfig?: Partial<RetryConfig>;
+    timeout?: number;
+  },
 ): Promise<Response<T>> {
-  return await retry(async () => {
-    const resp = await fetch(url("query", request));
-    if (resp.status !== 200) {
-      throw new Error(`Invalid API response: Status ${resp.status}`);
+  let attempt = 0;
+  const config = {
+    ...DEFAULT_RETRY_CONFIG,
+    maxAttempts: 10,
+    timeout: request.timeout ?? DEFAULT_TIMEOUT,
+    ...request.retryConfig,
+    get delay(): number {
+      return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
+    },
+  };
+
+  while (true) {
+    try {
+      const response = await fetch(url("query", request));
+
+      if (response.status === 429) {
+        throw `Rate limited, retrying in ${config.delay}ms`;
+      } else if (response.status === 408) {
+        debug("Timeout error, retrying...");
+        if (attempt <= config.maxAttempts) {
+          // retry immediately
+          continue;
+        }
+      } else if (response.status >= 400 && response.status < 500) {
+        throw Error("InvalidRequest");
+      }
+      return parseJSON(await response.text(), request.formatRow);
+    } catch (error) {
+      if (error instanceof Error && error.message === "InvalidRequest") {
+        debug(error.message);
+        throw error.message;
+      }
+
+      debug(`Error: ${JSON.stringify(error)}`);
+      if (config.maxAttempts) {
+        if (attempt === config.maxAttempts) {
+          if (error instanceof Error) {
+            throw new Error(
+              `Failed after ${attempt} attempts: ${error.message}`,
+            );
+          }
+          throw error;
+        }
+
+        debug(
+          `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
+            config.delay
+          }ms`,
+        );
+      } else {
+        debug(`Attempt failed, retrying in ${config.delay}ms`);
+      }
+
+      await delay(config.delay);
+
+      attempt++;
     }
-    return parseJSON(await resp.text(), request.formatRow);
-  });
+  }
 }
 
 type Stream = ReadableStreamDefaultReader<Uint8Array>;
@@ -358,18 +395,14 @@ export async function* queryLive<T = DefaultType>(
         signal: AbortSignal.any(signals),
       });
 
-      if (response.status !== 200) {
-        if (response.status === 429) {
-          throw `Rate limited, retrying in ${config.delay}ms`;
-        } else if (response.status === 408) {
-          debug("Timeout error, retrying...");
-          // retry immediately
-          continue;
-        } else {
-          throw new Error(
-            `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
-          );
-        }
+      if (response.status === 429) {
+        throw `Rate limited, retrying in ${config.delay}ms`;
+      } else if (response.status === 408) {
+        debug("Timeout error, retrying...");
+        // retry immediately
+        continue;
+      } else if (response.status >= 400 && response.status < 500) {
+        throw Error("InvalidRequest");
       }
 
       if (!response.body) {
@@ -384,6 +417,11 @@ export async function* queryLive<T = DefaultType>(
       }
     } catch (error) {
       if (userRequestedAbort) return;
+
+      if (error instanceof Error && error.message === "InvalidRequest") {
+        debug(error.message);
+        return;
+      }
 
       if (error instanceof Error && error.name === "AbortError") {
         debug(`Restarting...`);

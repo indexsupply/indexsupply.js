@@ -1,5 +1,7 @@
-import { query } from "../src/index.ts";
+import { query, setLogLevel, LogLevel } from "../src/index.ts";
 
+// Set the log level to DEBUG
+setLogLevel(LogLevel.DEBUG);
 type Address = `0x${string}`;
 
 const { blockNumber, result } = await query({
