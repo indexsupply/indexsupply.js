@@ -395,16 +395,6 @@ export async function* queryLive<T = DefaultType>(
         signal: AbortSignal.any(signals),
       });
 
-      if (response.status === 429) {
-        throw `Rate limited, retrying in ${config.delay}ms`;
-      } else if (response.status === 408) {
-        debug("Timeout error, retrying...");
-        // retry immediately
-        continue;
-      } else if (response.status >= 400 && response.status < 500) {
-        throw Error("InvalidRequest");
-      }
-
       if (!response.body) {
         throw new Error(`Index Supply API response missing body`);
       }
@@ -418,17 +408,18 @@ export async function* queryLive<T = DefaultType>(
     } catch (error) {
       if (userRequestedAbort) return;
 
-      if (error instanceof Error && error.message === "InvalidRequest") {
-        debug(error.message);
-        return;
-      }
-
       if (error instanceof Error && error.name === "AbortError") {
         debug(`Restarting...`);
         continue;
       }
 
       debug(`Error: ${error}`);
+
+      // Node only - bad client request
+      if (error instanceof TypeError && error.message === "terminated") {
+        throw new Error("InvalidRequest");
+      }
+
       if (config.maxAttempts) {
         if (attempt === config.maxAttempts) {
           if (error instanceof Error) {

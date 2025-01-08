@@ -1,17 +1,21 @@
 <html>
-    <head>
-        <script src="/dist/index.js" type="module"></script>
-    </head>
-    <script type="module">
-        import { query } from "/dist/index.js";
-        const { blockNumber, result } = await query({
-            chainId: 8453n,
-            eventSignatures: [],
-            query: "select block_num from logs limit 1",
-        });
-        document.querySelector("body pre").textContent = JSON.stringify({ blockNumber, result });
-    </script>
-    <body>
-        <pre></pre>
-    </body>
+  <head>
+    <script src="/dist/index.js" type="module"></script>
+  </head>
+  <script type="module">
+    import { queryLive, setLogLevel, LogLevel } from "/dist/index.js";
+    setLogLevel(LogLevel.DEBUG);
+    const { blockNumber, result } = await query({
+      chainId: 8453n,
+      eventSignatures: [],
+      query: "select block_num from logs limit 1",
+    });
+    document.querySelector("body pre").textContent = JSON.stringify({
+      blockNumber,
+      result,
+    });
+  </script>
+  <body>
+    <pre></pre>
+  </body>
 </html>

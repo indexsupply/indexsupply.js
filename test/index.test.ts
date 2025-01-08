@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { query, queryLive, setLogLevel, LogLevel } from "../src/index";
+import { query, queryLive, setLogLevel, LogLevel, debug } from "../src/index";
 
 setLogLevel(LogLevel.DEBUG);
 test("query", async (t) => {
@@ -76,5 +76,28 @@ test("queryLive", async (t) => {
       ]);
       controller.abort();
     }
+  });
+
+  await t.test("should throw", async () => {
+    await assert.rejects(
+      async () => {
+        const query = await queryLive({
+          chainId: 8453n,
+          eventSignatures: [
+            "Transfer(address indexed from, address indexed to, uint256 value)",
+          ],
+          query: "bad query",
+        });
+        for await (const { result } of query) {
+          result.forEach((row) => {
+            debug(`Transaction: ${row.tx}, Block: ${row.block}\n`);
+          });
+        }
+      },
+      (err: any) => {
+        assert.strictEqual(err.message, "InvalidRequest");
+        return true;
+      },
+    );
   });
 });

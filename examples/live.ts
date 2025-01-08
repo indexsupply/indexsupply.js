@@ -1,5 +1,6 @@
-import { queryLive } from "../src/index.ts";
+import { queryLive, LogLevel, setLogLevel } from "../src/index.ts";
 
+setLogLevel(LogLevel.DEBUG);
 type Hex = `0x${string}`;
 
 type Transfer = {
@@ -16,7 +17,7 @@ let latest = 23815440n;
 
 const query = queryLive({
   abortSignal: controller.signal,
-  startBlock: () => (latest + 1n),
+  startBlock: () => latest + 1n,
   chainId: 8453n,
   eventSignatures: [
     "Transfer(address indexed from, address indexed to, uint256 v)",
