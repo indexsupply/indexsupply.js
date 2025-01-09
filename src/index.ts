@@ -395,6 +395,16 @@ export async function* queryLive<T = DefaultType>(
         signal: AbortSignal.any(signals),
       });
 
+      if (response.status === 429) {
+        throw `Rate limited, retrying in ${config.delay}ms`;
+      } else if (response.status === 408) {
+        debug("Timeout error, retrying...");
+        // retry immediately
+        continue;
+      } else if (response.status >= 400 && response.status < 500) {
+        throw Error("InvalidRequest");
+      }
+
       if (!response.body) {
         throw new Error(`Index Supply API response missing body`);
       }
