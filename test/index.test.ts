@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from 'node:assert/strict';
-import {query, queryLive } from "../src/index"
+import { query, queryLive } from "../src/index"
 
 test("query", async (t) => {
   await t.test("should work", async () => {
@@ -29,9 +29,9 @@ test("query", async (t) => {
 test("queryLive", async (t) => {
   const controller = new AbortController();
   await t.test("should work", async () => {
-    const query = await queryLive({
+    const query = queryLive({
       abortSignal: controller.signal,
-      startBlock: () => 2397612,
+      startBlock: () => 2397612n,
       chainId: 8453n,
       eventSignatures: [
         "Transfer(address indexed from, address indexed to, uint256 value)",
