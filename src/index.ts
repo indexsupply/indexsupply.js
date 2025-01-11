@@ -5,47 +5,38 @@ export enum LogLevel {
   DEBUG = 3,
 }
 
-type LoggerConfig = {
-  logLevel: LogLevel;
-  logHandler: (level: LogLevel, message: string, ...args: unknown[]) => void;
-};
-
-const defaultConfig: LoggerConfig = {
-  logLevel: LogLevel.INFO,
-  logHandler: (level, message, ...args) => {
-    const levelName = LogLevel[level];
-    console.log(`[${levelName}] ${message}`, ...args);
-  },
-};
-
-let currentConfig: LoggerConfig = { ...defaultConfig };
-
-export const setLogLevel = (level: LogLevel): void => {
-  currentConfig.logLevel = level;
-};
-
-export const setLogHandler = (
-  handler: (level: LogLevel, message: string, ...args: unknown[]) => void,
-): void => {
-  currentConfig.logHandler = handler;
-};
-
-const log = (
-  level: LogLevel,
-  message: string,
-  ...args: unknown[]
-): void => {
-  if (level <= currentConfig.logLevel) {
-    currentConfig.logHandler(level, message, ...args);
+class Logger {
+  public level: LogLevel;
+  constructor() {
+    this.level = LogLevel.INFO;
+  }
+  log(level: LogLevel, message: string, ...args: unknown[]) {
+    if (level <= this.level) {
+      console.log(`[${LogLevel[level]}] ${message}`, ...args);
+    }
   }
 };
 
-const logError = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.ERROR, message, ...args);
+let defaultLogger = new Logger();
+let logger: LogHandler = (level, message, ...args) => {
+  defaultLogger.log(level, message, ...args);
 };
 
-const logDebug = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.DEBUG, message, ...args);
+const logError = (message: string, ...args: unknown[]) => {
+  logger(LogLevel.ERROR, message, ...args);
+}
+
+const logDebug = (message: string, ...args: unknown[]) => {
+  logger(LogLevel.DEBUG, message, ...args);
+}
+
+export const setLogLevel = (level: LogLevel): void => {
+  defaultLogger.level = level;
+};
+
+export type LogHandler = (level: LogLevel, message: string, ...args: unknown[]) => void;
+export const setLogger = (handler: LogHandler): void => {
+  logger = handler;
 };
 
 class EUser extends Error { constructor(s: string) { super(s); } }
@@ -103,6 +94,10 @@ type FetchResponse = globalThis.Response;
  * }
  */
 export type Request<T> = {
+  /** Optional AbortSignal. Use this to cancel the request. */
+  abortSignal?: AbortSignal;
+  /** Optional number of attempts to retry the request. */
+  retryAttempts?: number,
   /** Optional custom API URL. Defaults to https://api.indexsupply.net */
   apiUrl?: string;
   /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
@@ -264,12 +259,7 @@ async function sendRequest(
  *   })
  * });
  */
-export async function query<T = DefaultType>(
-  userRequest: Request<T> & {
-    abortSignal?: AbortSignal;
-    retryAttempts?: number,
-  },
-): Promise<Response<T>> {
+export async function query<T = DefaultType>(userRequest: Request<T>): Promise<Response<T>> {
   const handle = new ErrorHandler();
   for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 5); attempt++) {
     try {
@@ -288,11 +278,14 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
   const decoder = new TextDecoder("utf-8");
   while (true) {
     const { value, done } = await reader.read();
+    logDebug(`read ${value?.length} bytes from stream. done: ${done}`);
     if (done) return;
     let payload = decoder.decode(value);
+    logDebug(String.raw`read ${payload}`);
     if (payload.startsWith("data: ")) {
       payload = payload.substring(6).trimEnd();
     } else {
+      logDebug(`'data: ' missing from stream payload: ${payload}`);
       continue;
     }
     yield payload;
@@ -308,8 +301,6 @@ export type startBlock = () => bigint;
  * @param userRequest.startBlock - When provided, this function will be
  used as the starting block height for the query. It is common to save the
  latest block processed in a database (using your database's transaction system)
- * @param userRequest.abortSignal - When provided, and when an abort is provided, this function will
- return once it is finished with it's current request.
  * @yields Response objects containing block numbers and formatted results
  * @throws Error if the API response is invalid or unexpected
  * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
@@ -343,12 +334,11 @@ export type startBlock = () => bigint;
 export async function* queryLive<T = DefaultType>(
   userRequest: Request<T> & {
     startBlock?: startBlock;
-    abortSignal?: AbortSignal;
-    retryAttempts?: number,
   },
 ): AsyncGenerator<Response<T>, void, unknown> {
   let userRequestedAbort = false;
   userRequest.abortSignal?.addEventListener("abort", () => {
+    logDebug("live query aborted")
     userRequestedAbort = true;
   });
   const handle = new ErrorHandler();

@@ -1,4 +1,6 @@
-import { queryLive } from "../src/index.ts";
+import { queryLive, setLogLevel, LogLevel } from "../src/index.ts";
+
+setLogLevel(LogLevel.DEBUG);
 
 type Hex = `0x${string}`;
 
