@@ -27,8 +27,8 @@ test("query", async (t) => {
 });
 
 test("queryLive", async (t) => {
-  const controller = new AbortController();
   await t.test("should work", async () => {
+    const controller = new AbortController();
     const query = queryLive({
       abortSignal: controller.signal,
       startBlock: () => 2397612n,
@@ -53,5 +53,16 @@ test("queryLive", async (t) => {
       }]);
       controller.abort();
     }
+  });
+
+  await t.test("should return user error for invalid sql", async () => {
+    const query = queryLive({
+      abortSignal: AbortSignal.timeout(1000),
+      startBlock: () => 2397612n,
+      chainId: 8453n,
+      eventSignatures: ["Foo(uint a)"],
+      query: "select log_idx, bar from foo",
+    });
+    await assert.rejects(query.next(), { message: 'column "bar" does not exist' });
   });
 });
