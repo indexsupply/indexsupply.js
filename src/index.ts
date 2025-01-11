@@ -5,83 +5,73 @@ export enum LogLevel {
   DEBUG = 3,
 }
 
-type LoggerConfig = {
-  logLevel: LogLevel;
-  logHandler: (level: LogLevel, message: string, ...args: unknown[]) => void;
-};
-
-const defaultConfig: LoggerConfig = {
-  logLevel: LogLevel.INFO,
-  logHandler: (level, message, ...args) => {
-    const levelName = LogLevel[level];
-    console.log(`[${levelName}] ${message}`, ...args);
-  },
-};
-
-let currentConfig: LoggerConfig = { ...defaultConfig };
-
-export const setLogLevel = (level: LogLevel): void => {
-  currentConfig.logLevel = level;
-};
-
-export const setLogHandler = (
-  handler: (level: LogLevel, message: string, ...args: unknown[]) => void,
-): void => {
-  currentConfig.logHandler = handler;
-};
-
-export const log = (
-  level: LogLevel,
-  message: string,
-  ...args: unknown[]
-): void => {
-  if (level <= currentConfig.logLevel) {
-    currentConfig.logHandler(level, message, ...args);
+class Logger {
+  public level: LogLevel;
+  constructor() {
+    this.level = LogLevel.INFO;
   }
-};
-
-export const error = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.ERROR, message, ...args);
-};
-
-export const warn = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.WARN, message, ...args);
-};
-
-export const info = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.INFO, message, ...args);
-};
-
-export const debug = (message: string, ...args: unknown[]): void => {
-  log(LogLevel.DEBUG, message, ...args);
-};
-
-async function retry<T>(f: () => Promise<T>): Promise<T> {
-  let finalError;
-  for (let i = 1; ; i++) {
-    try {
-      return await f();
-    } catch (e) {
-      finalError = e;
-      if (i <= 5) {
-        const timeout = Math.min(500, 100 * 2 ** i);
-        await delay(timeout);
-      } else {
-        debug(`error ${e} retrying ${5 - i} more times.`);
-        break;
-      }
+  log(level: LogLevel, message: string, ...args: unknown[]) {
+    if (level <= this.level) {
+      console.log(`[${LogLevel[level]}] ${message}`, ...args);
     }
   }
-  throw finalError;
+};
+
+let defaultLogger = new Logger();
+let logger: LogHandler = (level, message, ...args) => {
+  defaultLogger.log(level, message, ...args);
+};
+
+const logError = (message: string, ...args: unknown[]) => {
+  logger(LogLevel.ERROR, message, ...args);
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+const logDebug = (message: string, ...args: unknown[]) => {
+  logger(LogLevel.DEBUG, message, ...args);
+}
+
+export const setLogLevel = (level: LogLevel): void => {
+  defaultLogger.level = level;
+};
+
+export type LogHandler = (level: LogLevel, message: string, ...args: unknown[]) => void;
+export const setLogger = (handler: LogHandler): void => {
+  logger = handler;
+};
+
+class EUser extends Error { constructor(s: string) { super(s); } }
+class EWait extends Error { constructor(s: string) { super(s); } }
+class ERetry extends Error { constructor(s: string) { super(s); } }
+
+class ErrorHandler {
+  public last: Error;
+  constructor() { this.last = new Error(); }
+
+  async error(msg: string, error: any) {
+    if (error instanceof Error) this.last = error;
+    if (error instanceof EWait) {
+      logError(`${msg} ${error} waiting before retry`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } else if (error instanceof ERetry) {
+      logError(`${msg} ${error} retrying now`);
+    } else if (error instanceof EUser) {
+      logError(`${msg} ${error} user error. not retrying`);
+      throw error;
+    } else {
+      logError(`${msg} ${error}`);
+    }
+  }
 }
 
 export type JsonValue = ReturnType<typeof JSON.parse>;
 export type Formatter<T> = (row: JsonValue[]) => T;
 type DefaultType = { [key: string]: JsonValue };
+
+// Alias fetch's request and response
+// so that we can use the words: Request, Response
+const FetchRequest = Request;
+type FetchRequest = globalThis.Request;
+type FetchResponse = globalThis.Response;
 
 /**
  * Represents a request to the API
@@ -104,6 +94,10 @@ type DefaultType = { [key: string]: JsonValue };
  * }
  */
 export type Request<T> = {
+  /** Optional AbortSignal. Use this to cancel the request. */
+  abortSignal?: AbortSignal;
+  /** Optional number of attempts to retry the request. */
+  retryAttempts?: number,
   /** Optional custom API URL. Defaults to https://api.indexsupply.net */
   apiUrl?: string;
   /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
@@ -186,8 +180,8 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   };
 };
 
-function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
-  const parsed = JSON.parse(payload);
+
+function parseResponse<T>(parsed: any, formatRow?: Formatter<T>): Response<T> {
   if (parsed.result.length === 0) {
     return { blockNumber: parsed.block_height, result: [] };
   }
@@ -200,6 +194,40 @@ function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
     blockNumber: parsed.block_height,
     result: result.map(formatRow || defaultFormatRow(columnNames)),
   };
+}
+
+async function sendRequest(
+  request: FetchRequest,
+  signal?: AbortSignal
+): Promise<FetchResponse> {
+  logDebug(`sending request to ${request.url}`);
+  try {
+    const response = await fetch(request, {
+      signal,
+    });
+    if ((response.status / 100) === 2) {
+      return response;
+    } else if (response.status === 408) {
+      throw new ERetry("timeout");
+    } else if (response.status === 429) {
+      throw new EWait("too many requests");
+    } else if (response.status === 404) {
+      throw new EUser(`not found ${request.url}`);
+    } else if ((response.status / 100) === 4) {
+      const responseBody = await response.text();
+      try {
+        const data = JSON.parse(responseBody);
+        throw new EUser(data["message"]);
+      } catch {
+        throw new EUser(responseBody);
+      }
+    } else {
+      const responseBody = await response.text();
+      throw new EWait(`${response.status} ${responseBody}`);
+    }
+  } catch (e) {
+    throw new EWait(`unkown error ${e}`);
+  }
 }
 
 /**
@@ -231,16 +259,17 @@ function parseJSON<T>(payload: string, formatRow?: Formatter<T>): Response<T> {
  *   })
  * });
  */
-export async function query<T = DefaultType>(
-  request: Request<T>,
-): Promise<Response<T>> {
-  return await retry(async () => {
-    const resp = await fetch(url("query", request));
-    if (resp.status !== 200) {
-      throw new Error(`Invalid API response: Status ${resp.status}`);
+export async function query<T = DefaultType>(userRequest: Request<T>): Promise<Response<T>> {
+  const handle = new ErrorHandler();
+  for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 5); attempt++) {
+    try {
+      const response = await sendRequest(new FetchRequest(url("query", userRequest)));
+      return parseResponse(await response.json(), userRequest.formatRow);
+    } catch (e) {
+      await handle.error("query", e);
     }
-    return parseJSON(await resp.text(), request.formatRow);
-  });
+  }
+  throw handle.last;
 }
 
 type Stream = ReadableStreamDefaultReader<Uint8Array>;
@@ -249,11 +278,14 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
   const decoder = new TextDecoder("utf-8");
   while (true) {
     const { value, done } = await reader.read();
+    logDebug(`read ${value?.length} bytes from stream. done: ${done}`);
     if (done) return;
     let payload = decoder.decode(value);
+    logDebug(String.raw`read ${payload}`);
     if (payload.startsWith("data: ")) {
-      payload = payload.substring(6);
+      payload = payload.substring(6).trimEnd();
     } else {
+      logDebug(`'data: ' missing from stream payload: ${payload}`);
       continue;
     }
     yield payload;
@@ -263,35 +295,12 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
 export type startBlock = () => bigint;
 
 /**
- * maxAttempts - The maximum number of attempts before giving up
- * baseDelay - The initial delay in milliseconds
- * maxDelay - The maximum delay in milliseconds
- * delay - The current delay in milliseconds
- */
-interface RetryConfig {
-  maxAttempts?: number;
-  baseDelay: number;
-  maxDelay: number;
-}
-
-/**
- * By default retries will happen indefinitely, set maxAttempts to limit the number of retries
- */
-const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  baseDelay: 1000,
-  maxDelay: 10000,
-};
-
-const DEFAULT_TIMEOUT = 60_000;
-/**
  * Creates a live query connection that yields results as the API indexes new blocks
  * @template T The type of the formatted results
  * @param userRequest - The request configuration with optional starting block number
  * @param userRequest.startBlock - When provided, this function will be
  used as the starting block height for the query. It is common to save the
  latest block processed in a database (using your database's transaction system)
- * @param userRequest.abortSignal - When provided, and when an abort is provided, this function will
- return once it is finished with it's current request.
  * @yields Response objects containing block numbers and formatted results
  * @throws Error if the API response is invalid or unexpected
  * @see {@link https://www.indexsupply.net/docs#get-query-live GET /query-live API documentation}
@@ -324,95 +333,35 @@ const DEFAULT_TIMEOUT = 60_000;
  */
 export async function* queryLive<T = DefaultType>(
   userRequest: Request<T> & {
-    abortSignal?: AbortSignal;
     startBlock?: startBlock;
-    retryConfig?: Partial<RetryConfig>;
-    timeout?: number;
   },
 ): AsyncGenerator<Response<T>, void, unknown> {
   let userRequestedAbort = false;
-  let attempt = 0;
-  const config = {
-    ...DEFAULT_RETRY_CONFIG,
-    timeout: userRequest.timeout ?? DEFAULT_TIMEOUT,
-    ...userRequest.retryConfig,
-    get delay(): number {
-      return Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
-    },
-  };
-
   userRequest.abortSignal?.addEventListener("abort", () => {
+    logDebug("live query aborted")
     userRequestedAbort = true;
   });
-
-  while (!userRequestedAbort) {
-    const timeoutSignal = AbortSignal.timeout(config.timeout);
-    const signals = [timeoutSignal];
-
-    if (userRequest.abortSignal) {
-      signals.push(userRequest.abortSignal);
-    }
-
+  const handle = new ErrorHandler();
+  for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 50); attempt++) {
     try {
-      const response = await fetch(url("query-live", userRequest), {
-        signal: AbortSignal.any(signals),
-      });
-
-      if (response.status !== 200) {
-        if (response.status === 429) {
-          throw `Rate limited, retrying in ${config.delay}ms`;
-        } else if (response.status === 408) {
-          debug("Timeout error, retrying...");
-          // retry immediately
-          continue;
-        } else {
-          throw new Error(
-            `Index Supply API error: ${response.status} ${response.statusText}, retrying...`,
-          );
-        }
-      }
-
-      if (!response.body) {
-        throw new Error(`Index Supply API response missing body`);
-      }
-
-      const reader = response.body.getReader() as Stream;
-      attempt = 0; // Reset counter on successful connection
-
+      let request = new FetchRequest(url("query-live", userRequest));
+      let response = await sendRequest(request, userRequest.abortSignal);
+      const reader = response.body!.getReader() as Stream;
       for await (const payload of readStream(reader)) {
-        yield parseJSON(payload, userRequest.formatRow);
-      }
-    } catch (error) {
-      if (userRequestedAbort) return;
-
-      if (error instanceof Error && error.name === "AbortError") {
-        debug(`Restarting...`);
-        continue;
-      }
-
-      debug(`Error: ${error}`);
-      if (config.maxAttempts) {
-        if (attempt === config.maxAttempts) {
-          if (error instanceof Error) {
-            throw new Error(
-              `Failed after ${attempt} attempts: ${error.message}`,
-            );
-          }
-          throw error;
+        let parsed = JSON.parse(payload);
+        if (parsed.error === "user") {
+          throw new EUser(parsed.message);
+        } else if (parsed.error === "server") {
+          throw new EWait(parsed.error.server);
+        } else {
+          yield parseResponse(parsed, userRequest.formatRow);
+          attempt = 0;
         }
-
-        debug(
-          `Attempt ${attempt + 1}/${config.maxAttempts} failed, retrying in ${
-            config.delay
-          }ms`,
-        );
-      } else {
-        debug(`Attempt failed, retrying in ${config.delay}ms`);
       }
-
-      await delay(config.delay);
-
-      attempt++;
+    } catch (e) {
+      if (userRequestedAbort) return;
+      await handle.error("query-live", e);
     }
   }
+  throw handle.last;
 }
