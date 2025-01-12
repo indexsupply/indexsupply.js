@@ -13,8 +13,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "moduleDetection": "force",
-	"declaration": true,
-
+    "declaration": true,
     "skipLibCheck": true
   }
 }
