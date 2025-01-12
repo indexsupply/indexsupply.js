@@ -48,6 +48,30 @@ for await (const { blockNumber, result } of liveQuery) {
 }
 ```
 
+### Using Hosted Package in the Browser
+
+See [this page](https://indexsupply.github.io/indexsupply.js/examples/index.html) for a working demonstration.
+
+```html
+<html>
+    <head>
+        <script src="https://static.indexsupply.net/indexsupply.js" type="module"></script>
+    </head>
+    <script type="module">
+        import { query } from "https://static.indexsupply.net/indexsupply.js";
+        const { blockNumber, result } = await query({
+            chainId: 8453n,
+            eventSignatures: [],
+            query: "select block_num from logs limit 1",
+        });
+        document.querySelector("body pre").textContent = JSON.stringify({ blockNumber, result });
+    </script>
+    <body>
+        <pre></pre>
+    </body>
+</html>
+```
+
 ## Local Development Setup
 
 ```
