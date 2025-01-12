@@ -30,6 +30,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
+    "prebuild": "node ./scripts/replace-version.js",
     "build": "npx tsc",
     "test": "npx tsx --test",
     "example": "npx tsx examples/live.ts"
