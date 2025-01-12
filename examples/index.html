@@ -3,13 +3,15 @@
         <script src="https://static.indexsupply.net/indexsupply.js" type="module"></script>
     </head>
     <script type="module">
-        import { query } from "https://static.indexsupply.net/indexsupply.js";
-        const { blockNumber, result } = await query({
+        import { queryLive } from "https://static.indexsupply.net/indexsupply.js";
+        const query = await queryLive({
             chainId: 8453n,
-            eventSignatures: [],
-            query: "select block_num from logs limit 1",
+            eventSignatures: ["Transfer(address indexed from, address indexed to, uint value)"],
+            query: "select sum(value) from transfer",
         });
-        document.querySelector("body pre").textContent = JSON.stringify({ blockNumber, result });
+        for await (const res of query) {
+            document.querySelector("body pre").textContent += JSON.stringify(res) + "\n";
+        }
     </script>
     <body>
         <pre></pre>
