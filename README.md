@@ -52,7 +52,7 @@ It is important to call out the `startBlock` parameter. It is likely that you wi
 `blockNumber` from the liveQuery Response in a database. Then, when your app restarts, it can query
 `max(block_number)` from your table to indicate the starting block for your Live Query.
 
-See the [examples/save-to-postgres](examples/save-to-postgres) source for a complete example.
+See the [examples/save-to-postgres](examples/save-to-postgres/src/index.ts) source for a complete example.
 
 
 ### Using Hosted Package in the Browser
