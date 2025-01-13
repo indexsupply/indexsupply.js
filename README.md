@@ -33,7 +33,7 @@ Subscribe to new data as it arrives:
 const liveQuery = queryLive({
   apiKey: "face",
   chainId: 8453,
-  blockNumber: 1234567, // Optional: start from specific block
+  startBlock: async () => 1234567n,
   query: 'select from, to, value from transfer',
   eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
@@ -47,6 +47,13 @@ for await (const { blockNumber, result } of liveQuery) {
   console.log(`New data at block ${blockNumber}:`, result)
 }
 ```
+
+It is important to call out the `startBlock` parameter. It is likely that you will want to save the
+`blockNumber` from the liveQuery Response in a database. Then, when your app restarts, it can query
+`max(block_number)` from your table to indicate the starting block for your Live Query.
+
+See the [examples/save-to-postgres](examples/save-to-postgres) source for a complete example.
+
 
 ### Using Hosted Package in the Browser
 

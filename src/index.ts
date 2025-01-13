@@ -139,10 +139,10 @@ export type Response<T> = {
  * @param request - The request configuration
  * @returns Formatted URL string ready to use with fetch()
  */
-function url<T>(
+async function url<T>(
   path: string,
   request: Request<T> & { startBlock?: startBlock },
-): string {
+): Promise<string> {
   const params = new URLSearchParams();
   params.append("chain", request.chainId.toString());
   params.append("query", request.query);
@@ -155,7 +155,10 @@ function url<T>(
     params.append("api-key", request.apiKey.toString());
   }
   if (request.startBlock) {
-    params.append("block_height", request.startBlock().toString());
+    logDebug("calling user's startBlock function");
+    const startBlock = await request.startBlock();
+    logDebug(`user's startBlock: ${startBlock.toString()}`);
+    params.append("block_height", startBlock.toString());
   }
   let apiUrl = "https://api.indexsupply.net";
   if (request.apiUrl) {
@@ -267,7 +270,7 @@ export async function query<T = DefaultType>(userRequest: Request<T>): Promise<R
   const handle = new ErrorHandler();
   for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 5); attempt++) {
     try {
-      const response = await sendRequest(new FetchRequest(url("query", userRequest)));
+      const response = await sendRequest(new FetchRequest(await url("query", userRequest)));
       return parseResponse(await response.json(), userRequest.formatRow);
     } catch (e) {
       await handle.error("query", e);
@@ -296,7 +299,16 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
   }
 }
 
-export type startBlock = () => bigint;
+/**
+* The Live Query API can accept a starting block number. This ensures that you
+* only receive updates since a specific block height. This is an async function because
+* it is likely that you will use a database (or other persistent service) to store your
+* progress. This implies that as you are saving the block_num as you process the results
+* of the Live Query.
+*
+* Each Live Query response includes the current block height.
+*/
+export type startBlock = () => Promise<bigint>;
 
 /**
  * Creates a live query connection that yields results as the API indexes new blocks
@@ -348,7 +360,7 @@ export async function* queryLive<T = DefaultType>(
   const handle = new ErrorHandler();
   for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 50); attempt++) {
     try {
-      let request = new FetchRequest(url("query-live", userRequest));
+      let request = new FetchRequest(await url("query-live", userRequest));
       let response = await sendRequest(request, userRequest.abortSignal);
       const reader = response.body!.getReader() as Stream;
       for await (const payload of readStream(reader)) {

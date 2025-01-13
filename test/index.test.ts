@@ -31,7 +31,7 @@ test("queryLive", async (t) => {
     const controller = new AbortController();
     const query = queryLive({
       abortSignal: controller.signal,
-      startBlock: () => 2397612n,
+      startBlock: async () => 2397612n,
       chainId: 8453n,
       eventSignatures: [
         "Transfer(address indexed from, address indexed to, uint256 value)",
@@ -58,7 +58,7 @@ test("queryLive", async (t) => {
   await t.test("should return user error for invalid sql", async () => {
     const query = queryLive({
       abortSignal: AbortSignal.timeout(1000),
-      startBlock: () => 2397612n,
+      startBlock: async () => 2397612n,
       chainId: 8453n,
       eventSignatures: ["Foo(uint a)"],
       query: "select log_idx, bar from foo",
