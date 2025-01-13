@@ -15,10 +15,12 @@ npm i @indexsupply/indexsupply.js
 Make a one-time query to get historical data:
 
 ```typescript
+import { query } from "@indexsupply/indexsupply.js";
+
 const { blockNumber, result } = await query({
   apiKey: "face",
   chainId: 8453,
-  query: 'select "from", "to", value from transfer',
+  query: 'select "from", "to", value from transfer limit 1',
   eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
@@ -35,11 +37,13 @@ console.log(`Block ${blockNumber}:`, result)
 Subscribe to new data as it arrives:
 
 ```typescript
-const liveQuery = queryLive({
+import { queryLive } from "@indexsupply/indexsupply.js";
+
+const q = queryLive({
   apiKey: "face",
   chainId: 8453,
   startBlock: async () => 1234567n,
-  query: 'select from, to, value from transfer',
+  query: 'select "from", "to", value from transfer limit 1',
   eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
@@ -48,7 +52,7 @@ const liveQuery = queryLive({
   }),
 })
 
-for await (const { blockNumber, result } of liveQuery) {
+for await (const { blockNumber, result } of q) {
   console.log(`New data at block ${blockNumber}:`, result)
 }
 ```
