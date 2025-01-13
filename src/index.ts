@@ -216,6 +216,7 @@ async function sendRequest(
   } catch (e) {
     throw new EWait(`fetch error ${e}`);
   }
+  logDebug(`received ${response.status} response. content-length: ${response.headers.get("content-length")}`);
   if ((BigInt(response.status) / 100n) === 2n) {
     return response;
   } else if (response.status === 408) {
