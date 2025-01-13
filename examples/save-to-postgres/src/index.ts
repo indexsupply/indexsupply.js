@@ -60,9 +60,7 @@ async function main() {
       const res = await pg.client!.query<{ latest: string }>(`
         select coalesce(max(block_num), 20000000) latest from my_transfers
       `);
-      const latest = BigInt(res.rows[0].latest);
-      console.log(latest)
-      return latest;
+      return BigInt(res.rows[0].latest);
     },
     chainId: 8453n,
     eventSignatures: [
