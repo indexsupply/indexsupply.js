@@ -300,13 +300,10 @@ async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
 }
 
 /**
-* The Live Query API can accept a starting block number. This ensures that you
-* only receive updates since a specific block height. This is an async function because
-* it is likely that you will use a database (or other persistent service) to store your
-* progress. This implies that as you are saving the block_num as you process the results
-* of the Live Query.
-*
-* Each Live Query response includes the current block height.
+* `queryLive` will call `startBlock` each time a new Live Query connection to
+the server is established. If the connection is restarted
+then `queryLive` will automatically restablish the connection
+and will call `startBlock` again to ensure we resume at the correct block height.
 */
 export type startBlock = () => Promise<bigint>;
 

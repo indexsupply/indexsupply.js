@@ -48,9 +48,24 @@ for await (const { blockNumber, result } of liveQuery) {
 }
 ```
 
-It is important to call out the `startBlock` parameter. It is likely that you will want to save the
-`blockNumber` from the liveQuery Response in a database. Then, when your app restarts, it can query
-`max(block_number)` from your table to indicate the starting block for your Live Query.
+`queryLive` will call `startBlock` each time a new connection to the server is established. If the connection is restarted
+then `queryLive` will automatically restablish the connection and will call `startBlock` to ensure we resume at the correct
+block height.
+
+A common pattern for `startBlock` is to use your database to figure out the last block you've processed. For example:
+
+```javascript
+const liveQuery = queryLive({
+  startBlock: async () => {
+    const rows = await pg.query("select max(block_num) block_num from my_table");
+    return BigInt(rows[0].block_num);
+  },
+  ...
+});
+for await (const { blockNumber, result } of liveQuery) {
+  await pg.query("insert into my_table(block_num, ...) values (blockNumber, ...)");
+}
+```
 
 See the [examples/save-to-postgres](examples/save-to-postgres/src/index.ts) source for a complete example.
 
