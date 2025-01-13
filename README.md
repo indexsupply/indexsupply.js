@@ -4,6 +4,11 @@ A Typescript wrapper for Index Supply's API.
 
 ## Usage
 
+This package is available on [NPM](https://www.npmjs.com/package/@indexsupply/indexsupply.js).
+
+```
+npm i @indexsupply/indexsupply.js
+```
 
 ### Single Query
 
