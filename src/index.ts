@@ -53,12 +53,12 @@ class ErrorHandler {
   async error(msg: string, error: any) {
     if (error instanceof Error) this.last = error;
     if (error instanceof EWait) {
-      logError(`${msg} ${error} waiting before retry`);
+      logError(`server error. will wait before retry: ${msg} ${error}`);
       await new Promise(resolve => setTimeout(resolve, 1000));
     } else if (error instanceof ERetry) {
-      logError(`${msg} ${error} retrying now`);
+      logError(`server error. will retry now: ${msg} ${error}`);
     } else if (error instanceof EUser) {
-      logError(`${msg} ${error} user error. not retrying`);
+      logError(`user error. will not retry: ${msg} ${error}`);
       throw error;
     } else {
       logError(`${msg} ${error}`);
@@ -207,33 +207,33 @@ async function sendRequest(
   signal?: AbortSignal
 ): Promise<FetchResponse> {
   logDebug(`sending request to ${request.url}`);
+  let response: FetchResponse;
   try {
-    const response = await fetch(request, {
+    response = await fetch(request, {
       signal,
       headers: { "User-Agent": `indexsupply.js/${userAgentVersion}` }
     });
-    if ((response.status / 100) === 2) {
-      return response;
-    } else if (response.status === 408) {
-      throw new ERetry("timeout");
-    } else if (response.status === 429) {
-      throw new EWait("too many requests");
-    } else if (response.status === 404) {
-      throw new EUser(`not found ${request.url}`);
-    } else if ((response.status / 100) === 4) {
-      const responseBody = await response.text();
-      try {
-        const data = JSON.parse(responseBody);
-        throw new EUser(data["message"]);
-      } catch {
-        throw new EUser(responseBody);
-      }
-    } else {
-      const responseBody = await response.text();
-      throw new EWait(`${response.status} ${responseBody}`);
-    }
   } catch (e) {
-    throw new EWait(`unknown error ${e}`);
+    throw new EWait(`fetch error ${e}`);
+  }
+  if ((BigInt(response.status) / 100n) === 2n) {
+    return response;
+  } else if (response.status === 408) {
+    throw new ERetry("timeout");
+  } else if (response.status === 429) {
+    throw new EWait("too many requests");
+  } else if (response.status === 404) {
+    throw new EUser(`not found ${request.url}`);
+  } else if ((BigInt(response.status) / 100n) === 4n) {
+    let errorMessage = await response.text();
+    try {
+      errorMessage = JSON.parse(errorMessage)["message"];
+    } finally {
+      throw new EUser(errorMessage);
+    }
+  } else {
+    const responseBody = await response.text();
+    throw new EWait(`${response.status} ${responseBody}`);
   }
 }
 

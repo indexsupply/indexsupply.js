@@ -24,6 +24,13 @@ test("query", async (t) => {
       value: "71817150413",
     }]);
   });
+  await t.test("should return user error for invalid sql", async () => {
+    await assert.rejects(query({
+      chainId: 8453n,
+      eventSignatures: ["Foo(uint a)"],
+      query: "select log_idx, bar from foo",
+    }), { message: `column "bar" does not exist` });
+  });
 });
 
 test("queryLive", async (t) => {
