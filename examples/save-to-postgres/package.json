@@ -1,0 +1,23 @@
+{
+  "name": "save-to-postgres",
+  "version": "1.0.0",
+  "description": "example script that saves a live query to postgres",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "npx tsc",
+    "main": "npx tsx src/index.ts"
+  },
+  "dependencies": {
+    "indexsupply.js": "file:../../",
+    "embedded-postgres": "^17.2.0-beta.15",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "include": ["src/index.ts"],
+  "compilerOptions": {
+    "outDir": "dist",
+
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "lib": ["ESNext", "DOM"],
+
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+    "declaration": true,
+    "skipLibCheck": true
+  }
+}

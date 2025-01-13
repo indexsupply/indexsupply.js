@@ -18,7 +18,7 @@ let latest = 23815440n;
 
 const query = queryLive({
   abortSignal: controller.signal,
-  startBlock: () => (latest + 1n),
+  startBlock: async () => (latest + 1n),
   chainId: 8453n,
   eventSignatures: [
     "Transfer(address indexed from, address indexed to, uint256 v)",
