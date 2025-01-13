@@ -7,7 +7,7 @@
         const query = await queryLive({
             chainId: 8453n,
             eventSignatures: ["Transfer(address indexed from, address indexed to, uint value)"],
-            query: "select sum(value) from transfer",
+            query: `select tx_hash, value from transfer limit 1`,
         });
         for await (const res of query) {
             document.querySelector("body pre").textContent += JSON.stringify(res) + "\n";
