@@ -379,3 +379,17 @@ export async function* queryLive<T = DefaultType>(
   }
   throw handle.last;
 }
+
+export const chainStartTimes: Record<number, { startTime: number, rate: number }> = {
+  8453: { startTime: 1686789347, rate: 2 },
+  84532: { startTime: 1695768288, rate: 2 },
+  7777777: { startTime: 1686693839, rate: 2 },
+};
+
+export function guessBlockTime(chain: number, blockNum: number): Date {
+  const config = chainStartTimes[chain];
+  if (config === undefined) {
+    throw new Error(`Chain ${chain} missing from chainStartTimes. Unable to guess timestamp.`);
+  }
+  return new Date((config.startTime + (blockNum * config.rate)) * 1000);
+}

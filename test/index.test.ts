@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from 'node:assert/strict';
-import { query, queryLive } from "../src/index"
+import { guessBlockTime, query, queryLive } from "../src/index"
 
 test("query", async (t) => {
   await t.test("should work", async () => {
@@ -71,5 +71,11 @@ test("queryLive", async (t) => {
       query: "select log_idx, bar from foo",
     });
     await assert.rejects(query.next(), { message: 'column "bar" does not exist' });
+  });
+});
+
+test("blockTimestamp", (t) => {
+  t.test("valid chain", () => {
+    assert.equal(guessBlockTime(8453, 26041515).toISOString(), "2025-02-06T20:06:17.000Z")
   });
 });
