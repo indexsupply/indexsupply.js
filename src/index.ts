@@ -396,9 +396,15 @@ export function guessBlockTime(chain: number, blockNum: number): Date {
   return new Date((config.startTime + (blockNum * config.rate)) * 1000);
 }
 
-const superQueryLive = queryLive;
+// These are defined so that child namespaces can
+// call query and queryLive.
 const superQuery = query;
+const superQueryLive = queryLive;
 
+/**
+ * For details on how the Daimo Pay API works, please see their documentation at:
+ * https://paydocs.daimo.com/payment-links
+ */
 export namespace Daimo {
   function b58int(input: string): bigint {
     const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -407,6 +413,11 @@ export namespace Daimo {
     }, 0n);
   }
 
+  /**
+  * When the end-user has completed the Daimo Payment
+  * and IntentFinished event is emitted. The query and queryLive
+  * functions accept an id, which is returned
+  */
   export type IntentFinished = {
     blockNumber: bigint,
     transactionHash: Hex,
@@ -434,8 +445,8 @@ export namespace Daimo {
 
   function addPredicates<T>(userRequest: IntentFinishedRequest<T>) {
     const predicates = [];
-    if (userRequest.destinationAddress) {
-      predicates.push(`destinationAddr = ${userRequest.destinationAddress}`);
+    if (userRequest.destinationAddr) {
+      predicates.push(`destinationAddr = ${userRequest.destinationAddr}`);
     }
     if (userRequest.id) {
       predicates.push(`intent->>'nonce' = '${b58int(userRequest.id)}'`);
@@ -445,13 +456,30 @@ export namespace Daimo {
     }
   }
 
+  /**
+  * @param query is optional. When omitted a default query that selects: block_num, tx_hash, and success is supplied.
+  * @param eventSignatures is optional. You may only want to change this if you want to supply
+  * a query that does joins and therefore you need to supply multiple eventSignatures.
+  */
   export type IntentFinishedRequest<T> =
     Omit<Request<T>, 'query' | 'eventSignatures'> &
     Partial<Pick<Request<T>, 'query' | 'eventSignatures'>> & {
-      destinationAddress?: Hex,
+      destinationAddr?: Hex,
       id?: string,
     };
 
+  /**
+  * Behaves similar to the root query function
+  *
+  * When a payment link is created via the Daimo API, their API returns
+  * the URL that you will redirect your user towards and an id. The id is
+  * base58 encoded. Use that id for this function to find the end-user's payment
+  * transaction.
+  * @param userRequest with default query and eventSignatures
+  * @param userRequest.destinationAddr will be added as a predicate to the query
+  * @param userRequest.id will be used to calculate an base58 decoded integer and used as a predicate to the query
+  * @returns IntentFinished
+  */
   export async function query<T = IntentFinished>(
     userRequest: IntentFinishedRequest<T>
   ): Promise<Response<T>> {
@@ -469,6 +497,24 @@ export namespace Daimo {
     return superQuery(userRequestWithDefaults);
   }
 
+  /**
+   * Behaves similar to the root queryLive function
+   *
+   * When a payment link is created via the Daimo API, their API returns
+   * the URL that you will redirect your user towards and an id. The id is
+   * base58 encoded. Use that id for this function to find the end-user's payment
+   * transaction.
+   *
+   * You can open a live query if you want to wait for the user's payment to complete
+   * or you could provide your own userRequest.query and stream all payments to your
+   * destination address.
+   *
+   * @param userRequest with default query and eventSignatures
+   * @param userRequest.destinationAddr will be added as a predicate to the query
+   * @param userRequest.id will be used to calculate an base58 decoded integer and used as a predicate to the query
+   * @param userRequest.startBlock will start the live query at the specified block height
+   * @returns IntentFinished
+   */
   export async function* queryLive<T = IntentFinished>(
     userRequest: IntentFinishedRequest<T> & {
       startBlock?: startBlock;

@@ -84,7 +84,7 @@ test("daimoPay", async (t) => {
   await t.test("query", async () => {
     const { blockNumber, result } = await Daimo.query({
       chainId: 8453n,
-      destinationAddress: "0x7531f00dbc616b3466990e615bf01eff507c88d4",
+      destinationAddr: "0x7531f00dbc616b3466990e615bf01eff507c88d4",
       id: "7iNRoKprdvcNbafqixKSGJrW1T8vjyHzxfRj8jmfEeSR",
     });
     assert.deepStrictEqual(result, [{
