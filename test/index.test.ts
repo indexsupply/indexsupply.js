@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from 'node:assert/strict';
-import { Daimo, guessBlockTime, query, queryLive } from "../src/index"
+import { Daimo, guessBlockTime, query, queryLive, setLogLevel, LogLevel } from "../src/index"
+
+setLogLevel(LogLevel.DEBUG);
 
 test("query", async (t) => {
   await t.test("should work", async () => {
@@ -71,6 +73,21 @@ test("queryLive", async (t) => {
       query: "select log_idx, bar from foo",
     });
     await assert.rejects(query.next(), { message: 'column "bar" does not exist' });
+  });
+
+  await t.test("should buffer large responses", async () => {
+    const controller = new AbortController();
+    const query = queryLive({
+      abortSignal: controller.signal,
+      startBlock: async () => 0n,
+      chainId: 8453n,
+      eventSignatures: [],
+      query: "select tx_hash from logs order by block_num desc limit 10000",
+    });
+    for await (const { result } of query) {
+      controller.abort();
+      assert(result.length == 10000);
+    }
   });
 });
 
