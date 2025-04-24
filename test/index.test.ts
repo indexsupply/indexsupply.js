@@ -26,6 +26,14 @@ test("query", async (t) => {
       value: "71817150413",
     }]);
   });
+  await t.test("should handle many signatures", async () => {
+    const { result } = await query({
+      chainId: 8453n,
+      eventSignatures: ["Foo(uint a)", "Bar(uint b)"],
+      query: "select a, b from foo, bar",
+    });
+    assert.deepStrictEqual(result, []);
+  });
   await t.test("should return user error for invalid sql", async () => {
     await assert.rejects(query({
       chainId: 8453n,
