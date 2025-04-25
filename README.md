@@ -21,7 +21,7 @@ const { blockNumber, result } = await query({
   apiKey: "face",
   chainId: 8453,
   query: 'select "from", "to", value from transfer limit 1',
-  eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
+  signatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
     to: to as Address,
@@ -44,7 +44,7 @@ const q = queryLive({
   chainId: 8453,
   startBlock: async () => 1234567n,
   query: 'select "from", "to", value from transfer limit 1',
-  eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
+  signatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
     to: to as Address,
@@ -92,7 +92,7 @@ See [this page](https://indexsupply.github.io/indexsupply.js/examples/index.html
         import { query } from "https://static.indexsupply.net/indexsupply.js";
         const { blockNumber, result } = await query({
             chainId: 8453n,
-            eventSignatures: [],
+            signatures: [],
             query: "select block_num from logs limit 1",
         });
         document.querySelector("body pre").textContent = JSON.stringify({ blockNumber, result });

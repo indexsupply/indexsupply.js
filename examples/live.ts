@@ -20,7 +20,7 @@ const query = queryLive({
   abortSignal: controller.signal,
   startBlock: async () => (latest + 1n),
   chainId: 8453n,
-  eventSignatures: [
+  signatures: [
     "Transfer(address indexed from, address indexed to, uint256 v)",
   ],
   query: "select tx_hash, block_num from transfer limit 1",
@@ -32,8 +32,8 @@ const query = queryLive({
   },
 });
 
-for await (const { result } of query) {
-  result.forEach((row) => {
+for await (const { rows } of query) {
+  rows.forEach((row) => {
     if (row.block > latest) {
       latest = row.block;
     }

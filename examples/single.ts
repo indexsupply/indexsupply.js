@@ -4,7 +4,7 @@ type Address = `0x${string}`;
 
 const { blockNumber, result } = await query({
   chainId: 8453n,
-  eventSignatures: [
+  signatures: [
     "Transfer(address indexed from, address indexed to, uint256 value)",
   ],
   query:

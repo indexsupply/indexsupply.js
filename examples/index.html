@@ -6,7 +6,7 @@
         import { queryLive } from "https://static.indexsupply.net/indexsupply.js";
         const query = await queryLive({
             chainId: 8453n,
-            eventSignatures: ["Transfer(address indexed from, address indexed to, uint value)"],
+            signatures: ["Transfer(address indexed from, address indexed to, uint value)"],
             query: `select tx_hash, value from transfer limit 1`,
         });
         for await (const res of query) {
