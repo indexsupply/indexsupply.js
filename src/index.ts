@@ -134,10 +134,10 @@ type BaseRequest<T> = {
   apiUrl?: string;
   /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
   apiKey?: string;
-  /** SQL query to execute */
-  query: string;
   /** Optional array of signatures to filter transactions and events */
   signatures?: ReadonlyArray<string>;
+  /** SQL query to execute */
+  query: string;
   /** Optional function to format the row data. Required if T is not DefaultType */
   formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
 };

@@ -7,6 +7,7 @@ setLogLevel(LogLevel.DEBUG);
 test("query", async (t) => {
   await t.test("should work", async () => {
     const { rows } = await query({
+      apiKey: process.env["IS_KEY"],
       chainId: 8453n,
       signatures: [
         "Transfer(address indexed from, address indexed to, uint256 value)",
@@ -28,6 +29,7 @@ test("query", async (t) => {
   });
   await t.test("should handle many signatures", async () => {
     const { rows } = await query({
+      apiKey: process.env["IS_KEY"],
       chainId: 8453n,
       signatures: ["Foo(uint a)", "Bar(uint b)"],
       query: "select a, b from foo, bar",
@@ -36,6 +38,7 @@ test("query", async (t) => {
   });
   await t.test("should return user error for invalid sql", async () => {
     await assert.rejects(query({
+      apiKey: process.env["IS_KEY"],
       chainId: 8453n,
       signatures: ["Foo(uint a)"],
       query: "select log_idx, bar from foo",
@@ -47,6 +50,7 @@ test("queryLive", async (t) => {
   await t.test("should work", async () => {
     const controller = new AbortController();
     const query = queryLive({
+      apiKey: process.env["IS_KEY"],
       abortSignal: controller.signal,
       startBlock: async () => 2397612n,
       chainId: 8453n,
@@ -74,6 +78,7 @@ test("queryLive", async (t) => {
 
   await t.test("should return user error for invalid sql", async () => {
     const query = queryLive({
+      apiKey: process.env["IS_KEY"],
       abortSignal: AbortSignal.timeout(1000),
       startBlock: async () => 2397612n,
       chainId: 8453n,
@@ -86,6 +91,7 @@ test("queryLive", async (t) => {
   await t.test("should buffer large responses", async () => {
     const controller = new AbortController();
     const query = queryLive({
+      apiKey: process.env["IS_KEY"],
       abortSignal: controller.signal,
       startBlock: async () => 0n,
       chainId: 8453n,

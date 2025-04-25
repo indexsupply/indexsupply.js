@@ -15,3 +15,5 @@ jobs:
         with:
           node-version: 22
       - run: npm install && npm run test
+        env:
+          IS_KEY: ${{ secrets.IS_KEY }}
