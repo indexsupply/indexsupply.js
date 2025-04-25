@@ -79,6 +79,33 @@ type FetchRequest = globalThis.Request;
 type FetchResponse = globalThis.Response;
 
 /**
+* A mapping of the chain-id to block-number
+* When a cursor is returned from a request the block number
+* is the latest block indexed by the API.
+* When a cursor is sent to the server it requests data past the block number.
+*/
+type Cursor = Record<number, number>;
+
+function encodeCursor(cursor: Cursor): string {
+  return Object.entries(cursor)
+    .flatMap(([k, v]) => [k.toString(), v.toString()])
+    .join("-");
+}
+
+function decodeCursor(encoded: string): Cursor {
+  const parts = encoded.split("-");
+  if (parts.length % 2 !== 0) throw new Error("Invalid cursor string");
+  const cursor: Cursor = {};
+  for (let i = 0; i < parts.length; i += 2) {
+    const key = Number(parts[i]);
+    const value = Number(parts[i + 1]);
+    if (Number.isNaN(key) || Number.isNaN(value)) throw new Error("Invalid number");
+    cursor[key] = value;
+  }
+  return cursor;
+}
+
+/**
  * Represents a request to the API
  * @template T The expected return type of the formatted data
  * @see {@link https://www.indexsupply.net/docs#get-query GET /query API documentation}
@@ -98,24 +125,34 @@ type FetchResponse = globalThis.Response;
  *   })
  * }
  */
-export type Request<T> = {
+type BaseRequest<T> = {
   /** Optional AbortSignal. Use this to cancel the request. */
   abortSignal?: AbortSignal;
   /** Optional number of attempts to retry the request. */
-  retryAttempts?: number,
+  retryAttempts?: number;
   /** Optional custom API URL. Defaults to https://api.indexsupply.net */
   apiUrl?: string;
   /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
   apiKey?: string;
-  /** Chain ID for the target blockchain */
-  chainId: bigint;
   /** SQL query to execute */
   query: string;
-  /** Optional array of event signatures to filter events */
+  /** Optional array of signatures to filter transactions and events */
   signatures?: ReadonlyArray<string>;
   /** Optional function to format the row data. Required if T is not DefaultType */
   formatRow?: T extends DefaultType ? undefined | Formatter<T> : Formatter<T>;
 };
+
+type RequestWithCursor<T> = BaseRequest<T> & {
+  cursor: Cursor;
+  chainId?: never;
+};
+
+type RequestWithChainId<T> = BaseRequest<T> & {
+  chainId: bigint;
+  cursor?: never;
+};
+
+export type Request<T> = RequestWithCursor<T> | RequestWithChainId<T>;
 
 type Column = {
   name: string;
@@ -135,7 +172,7 @@ type Column = {
  * }
  */
 export type Response<T> = {
-  cursor: String;
+  cursor: Cursor;
   columns: Array<Column>;
   rows: T[];
 };
@@ -164,13 +201,15 @@ async function url<T>(
   } else {
     params.set("cursor", [request.chainId, "0"].join("-"));
   }
+  if (request.cursor) {
+    params.set("cursor", encodeCursor(request.cursor));
+  }
   request.signatures?.forEach((sig) => {
     params.append("signatures", sig);
   })
   params.set("query", request.query);
 
-  //let apiUrl = "https://api.indexsupply.net/v2";
-  let apiUrl = "http://localhost:8000/v2";
+  let apiUrl = "https://api.indexsupply.net/v2";
   if (request.apiUrl) {
     apiUrl = request.apiUrl;
   }
@@ -196,15 +235,13 @@ const defaultFormatRow = (names: string[]): Formatter<DefaultType> => {
   };
 };
 
-
-
 function parseResponse<T>(
   parsed: any,
   formatRow?: Formatter<T>
 ): Array<Response<T>> {
   return (parsed as any[]).map(({ cursor, columns, rows }) => {
     return {
-      cursor,
+      cursor: decodeCursor(cursor),
       columns,
       rows: rows.map(formatRow ?? defaultFormatRow(columns.map((c: Column) => c.name))),
     };
