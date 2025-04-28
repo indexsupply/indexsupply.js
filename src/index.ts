@@ -403,7 +403,7 @@ export async function* queryLive<T = DefaultType>(
   const handle = new ErrorHandler();
   for (let attempt = 0; attempt < (userRequest.retryAttempts ?? 50); attempt++) {
     try {
-      let request = new FetchRequest(await url("live", userRequest));
+      let request = new FetchRequest(await url("query-live", userRequest));
       let response = await sendRequest(request, userRequest.abortSignal);
       const reader = response.body!.getReader() as Stream;
       for await (const payload of readStream(reader)) {
