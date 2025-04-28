@@ -191,7 +191,6 @@ async function url<T>(
   request: Request<T> & { startBlock?: startBlock },
 ): Promise<string> {
   const params = new URLSearchParams();
-  params.set("srv", "ga2");
   if (request.apiKey) {
     params.set("api-key", request.apiKey.toString());
   }
