@@ -134,6 +134,8 @@ type BaseRequest<T> = {
   apiUrl?: string;
   /** Optional API key for authentication. Unauthenticated requests limited to 5 per minute */
   apiKey?: string;
+  /** @deprecated use `signatures` */
+  eventSignatures?: ReadonlyArray<string>;
   /** Optional array of signatures to filter transactions and events */
   signatures?: ReadonlyArray<string>;
   /** SQL query to execute */
@@ -204,9 +206,12 @@ async function url<T>(
   if (request.cursor) {
     params.set("cursor", encodeCursor(request.cursor));
   }
+  request.eventSignatures?.forEach((sig) => {
+    params.append("signatures", sig);
+  });
   request.signatures?.forEach((sig) => {
     params.append("signatures", sig);
-  })
+  });
   params.set("query", request.query);
 
   let apiUrl = "https://api.indexsupply.net/v2";
