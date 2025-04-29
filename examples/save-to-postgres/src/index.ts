@@ -77,8 +77,8 @@ async function main() {
       };
     },
   });
-  for await (const { result } of query) {
-    await Promise.all(result.map(async (row) => {
+  for await (const { rows } of query) {
+    await Promise.all(rows.map(async (row) => {
       await pg.client!.query(`
         insert into my_transfers(block_num, "from", "to", value)
         values ($1, $2, $3, $4)
