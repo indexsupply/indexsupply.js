@@ -83,6 +83,7 @@ type FetchResponse = globalThis.Response;
 * When a cursor is returned from a request the block number
 * is the latest block indexed by the API.
 * When a cursor is sent to the server it requests data past the block number.
+* @see {@link https://www.indexsupply.net/docs#cursor Cursor Docs}
 */
 type Cursor = Record<number, number>;
 
@@ -167,10 +168,17 @@ type Column = {
  * @see {@link https://www.indexsupply.net/docs#response Response format documentation}
  * @example
  * type ExampleResponse = Response<{ address: string, value: string }> = {
- *   blockNumber: 17829471n,
- *   result: [
- *     { address: "0x123...", value: "1000000000000000000" }
- *   ]
+ *   "cursor": "8453-18479546",
+ *   "columns": [
+ *     {"name": "from",   "pgtype": "bytea"},
+ *     {"name": "to",     "pgtype": "bytea"},
+ *     {"name": "tokens", "pgtype": "numeric"}
+ *   ],
+ *   "rows":[[
+ *         "0x0000000000000000000000000000000000000000",
+ *         "0xdaabdaac8073a7dabdc96f6909e8476ab4001b34",
+ *         "0"
+ *   ]]
  * }
  */
 export type Response<T> = {
