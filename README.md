@@ -17,11 +17,11 @@ Make a one-time query to get historical data:
 ```typescript
 import { query } from "@indexsupply/indexsupply.js";
 
-const { blockNumber, result } = await query({
+const { cursor, rows } = await query({
   apiKey: "face",
   chainId: 8453,
   query: 'select "from", "to", value from transfer limit 1',
-  eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
+  signatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
     to: to as Address,
@@ -29,7 +29,7 @@ const { blockNumber, result } = await query({
   }),
 })
 
-console.log(`Block ${blockNumber}:`, result)
+console.log(`Block ${cursor}:`, rows)
 ```
 
 ### Live Query
@@ -44,7 +44,7 @@ const q = queryLive({
   chainId: 8453,
   startBlock: async () => 1234567n,
   query: 'select "from", "to", value from transfer limit 1',
-  eventSignatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
+  signatures: ['Transfer(address indexed from, address indexed to, uint256 value)'],
   formatRow: ([from, to, value]) => ({
     from: from as Address,
     to: to as Address,
@@ -52,8 +52,8 @@ const q = queryLive({
   }),
 })
 
-for await (const { blockNumber, result } of q) {
-  console.log(`New data at block ${blockNumber}:`, result)
+for await (const { cursor, rows } of q) {
+  console.log(`New data at block ${cursor}:`, rows)
 }
 ```
 
@@ -71,7 +71,7 @@ const liveQuery = queryLive({
   },
   ...
 });
-for await (const { blockNumber, result } of liveQuery) {
+for await (const { cursor, rows } of liveQuery) {
   await pg.query("insert into my_table(block_num, ...) values (blockNumber, ...)");
 }
 ```
@@ -90,12 +90,12 @@ See [this page](https://indexsupply.github.io/indexsupply.js/examples/index.html
     </head>
     <script type="module">
         import { query } from "https://static.indexsupply.net/indexsupply.js";
-        const { blockNumber, result } = await query({
+        const { cursor, rows } = await query({
             chainId: 8453n,
-            eventSignatures: [],
+            signatures: [],
             query: "select block_num from logs limit 1",
         });
-        document.querySelector("body pre").textContent = JSON.stringify({ blockNumber, result });
+        document.querySelector("body pre").textContent = JSON.stringify({ cursor, rows});
     </script>
     <body>
         <pre></pre>

@@ -63,7 +63,7 @@ async function main() {
       return BigInt(res.rows[0].latest);
     },
     chainId: 8453n,
-    eventSignatures: [
+    signatures: [
       "Transfer(address indexed from, address indexed to, uint256 value)",
     ],
     query: `select tx_hash, block_num, "from", "to", value from transfer order by block_num desc limit 1`,
@@ -77,8 +77,8 @@ async function main() {
       };
     },
   });
-  for await (const { result } of query) {
-    await Promise.all(result.map(async (row) => {
+  for await (const { rows } of query) {
+    await Promise.all(rows.map(async (row) => {
       await pg.client!.query(`
         insert into my_transfers(block_num, "from", "to", value)
         values ($1, $2, $3, $4)

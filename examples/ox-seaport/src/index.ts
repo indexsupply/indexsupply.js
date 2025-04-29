@@ -6,7 +6,7 @@ setLogLevel(LogLevel.DEBUG);
 const orderFulfilled = AbiEvent.from("event OrderFulfilled(bytes32 orderHash, address indexed offerer, address indexed zone, address recipient, (uint8, address, uint256, uint256)[] offer, (uint8, address, uint256, uint256, address)[] consideration)");
 
 async function main() {
-  const { blockNumber, result } = await query({
+  const { cursor, rows } = await query({
     chainId: 1n,
     query: `
       select topics, data
@@ -24,7 +24,7 @@ async function main() {
     },
   });
 
-  result.forEach((order) => {
+  rows.forEach((order) => {
     console.log({ offer: order.offer, consideration: order.consideration });
   })
 }

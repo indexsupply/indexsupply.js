@@ -1,15 +1,14 @@
-import { query } from "../src/index.ts";
+import { query, setLogLevel, LogLevel } from "../src/index.ts";
+setLogLevel(LogLevel.DEBUG);
 
-type Address = `0x${string}`;
-
-const { blockNumber, result } = await query({
+let { cursor, rows } = await query({
   chainId: 8453n,
-  eventSignatures: [
+  signatures: [
     "Transfer(address indexed from, address indexed to, uint256 value)",
   ],
   query:
     'select block_num, log_idx, "from", "to", "value" from transfer limit 5',
 });
 
-console.log(`current block: ${blockNumber}`);
-result.forEach((r) => console.log(r.block_num));
+console.log({ cursor: cursor });
+rows.forEach((r) => console.log(r.block_num));
