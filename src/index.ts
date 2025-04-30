@@ -337,23 +337,40 @@ export async function query<T = DefaultType>(userRequest: Request<T>): Promise<R
   throw handle.last;
 }
 
-type Stream = ReadableStreamDefaultReader<Uint8Array>;
+export type Stream = ReadableStreamDefaultReader<Uint8Array>;
 
-async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
+export async function* readStream(reader: Stream): AsyncGenerator<JsonValue> {
   const decoder = new TextDecoder("utf-8");
-  let payload = new String();
-  while (true) {
-    const { value, done } = await reader.read();
-    logDebug(`read ${value?.length} bytes from stream. done: ${done}`);
-    if (done) return;
-    let decoded = decoder.decode(value);
-    logDebug(`read ${decoded}`);
-    payload += decoded;
-    if (payload.endsWith("\n\n")) {
-      let complete = payload.replace(/^data:\s*/, '').trimEnd();
-      yield complete;
-      payload = new String();
+  let buffer = new String();
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const decoded = decoder.decode(value, { stream: true });
+      logDebug(`read ${decoded}`);
+      buffer += decoded;
+
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+
+        const lines = block.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data:")) {
+            const jsonString = line.slice(5).trim();
+            try {
+              yield JSON.parse(jsonString);
+            } catch {
+              await reader.cancel("Invalid JSON in data line");
+              throw new Error("Failed to parse JSON");
+            }
+          }
+        }
+      }
     }
+  } finally {
+    await reader.cancel("Stream closed");
   }
 }
 
@@ -418,8 +435,7 @@ export async function* queryLive<T = DefaultType>(
       let request = new FetchRequest(await url("query-live", userRequest));
       let response = await sendRequest(request, userRequest.abortSignal);
       const reader = response.body!.getReader() as Stream;
-      for await (const payload of readStream(reader)) {
-        let parsed = JSON.parse(payload);
+      for await (const parsed of readStream(reader)) {
         if (parsed.error === "user") {
           throw new EUser(parsed.message);
         } else if (parsed.error === "server") {
