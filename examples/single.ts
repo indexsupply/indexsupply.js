@@ -1,8 +1,7 @@
-import { query, setLogLevel, LogLevel } from "../src/index.ts";
+import { Cursor, query, setLogLevel, LogLevel } from "../src/index.ts";
 setLogLevel(LogLevel.DEBUG);
-
 let { cursor, rows } = await query({
-  chainId: 8453n,
+  cursor: new Cursor([[8453n, 29728143n]]),
   signatures: [
     "Transfer(address indexed from, address indexed to, uint256 value)",
   ],

@@ -4,17 +4,12 @@ setLogLevel(LogLevel.DEBUG);
 
 type Hex = `0x${string}`;
 
-type Transfer = {
-  tx: Hex;
-  block: bigint;
-};
-
 const controller = new AbortController();
 setTimeout(() => {
   controller.abort();
 }, 60_000);
 
-let latest = 23815440n;
+let latest = 29728979n;
 
 const query = queryLive({
   abortSignal: controller.signal,
