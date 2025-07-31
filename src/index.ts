@@ -186,9 +186,6 @@ function queryParams<T>(request: Request<T>, startBlock: bigint): URLSearchParam
 
 function jsonBody<T>(request: Request<T>): string {
   const body: any = {};
-  if (request.apiKey) {
-    body["api-key"] = request.apiKey.toString();
-  }
   if (request.chainId) {
     body["cursor"] = [request.chainId, "0"].join("-");
   }
